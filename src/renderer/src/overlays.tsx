@@ -107,9 +107,11 @@ export function Viewer({
   const stripRef = useRef<HTMLDivElement>(null)
   const [stripScroll, setStripScroll] = useState(0)
   const [stripWidth, setStripWidth] = useState(0)
+  const [panning, setPanning] = useState(false)
   const annosRef = useRef<Annotation[]>([])
   const draftRef = useRef<Annotation | null>(null)
   const drawing = useRef<{ id: string; kind: 'rect' | 'arrow'; x: number; y: number } | null>(null)
+  const panRef = useRef<{ x: number; y: number; left: number; top: number } | null>(null)
   const shownId = useRef<string | undefined>(undefined)
   const saveGen = useRef(0)
   const zoomByRef = useRef<(factor: number) => void>(() => {})
@@ -415,7 +417,43 @@ export function Viewer({
             <path d="M9.5 5.5 16 12l-6.5 6.5" />
           </svg>
         </button>
-      <div className="viewer-stage" ref={stageRef} onClick={(e) => e.stopPropagation()}>
+      <div
+        className={`viewer-stage ${!fitted && tool === 'view' && zoomable ? 'can-pan' : ''} ${panning ? 'is-panning' : ''}`}
+        ref={stageRef}
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => {
+          // 放大后拖拽平移；标注工具占用指针时不抢
+          if (tool !== 'view' || fitted || !zoomable || e.button !== 0) return
+          const stage = stageRef.current
+          if (!stage) return
+          if (stage.scrollWidth <= stage.clientWidth + 1 && stage.scrollHeight <= stage.clientHeight + 1) {
+            return
+          }
+          panRef.current = {
+            x: e.clientX,
+            y: e.clientY,
+            left: stage.scrollLeft,
+            top: stage.scrollTop,
+          }
+          setPanning(true)
+          e.currentTarget.setPointerCapture(e.pointerId)
+        }}
+        onPointerMove={(e) => {
+          const pan = panRef.current
+          const stage = stageRef.current
+          if (!pan || !stage) return
+          stage.scrollLeft = pan.left - (e.clientX - pan.x)
+          stage.scrollTop = pan.top - (e.clientY - pan.y)
+        }}
+        onPointerUp={() => {
+          panRef.current = null
+          setPanning(false)
+        }}
+        onPointerCancel={() => {
+          panRef.current = null
+          setPanning(false)
+        }}
+      >
         {kind === 'video' ? (
           <video key={item.id} src={src} controls autoPlay />
         ) : kind === 'audio' ? (

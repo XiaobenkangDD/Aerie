@@ -337,7 +337,10 @@
 }
 
 .import-pop .pop button {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   width: 100%;
   text-align: left;
   padding: 6px 10px;
@@ -348,6 +351,13 @@
 
 .import-pop .pop button:hover {
   background: var(--bg-hover);
+}
+
+.import-pop .pop kbd {
+  font-family: var(--font);
+  font-size: 11px;
+  color: var(--fg-1);
+  white-space: nowrap;
 }
 
 .btn-primary.sm {
@@ -492,12 +502,27 @@
   transition: width 0.2s var(--ease);
 }
 
+.progress-bar.is-done .progress-text {
+  color: var(--accent);
+}
+
+.progress-bar.is-done .progress-fill {
+  background: var(--accent);
+}
+
 /* ── 内容区 ──────────────────────────────────────────────── */
 
 .content {
   flex: 1;
   position: relative;
   min-height: 0;
+}
+
+/* 搜索/筛选刷新时挡住旧结果，避免点到过期卡片 */
+.content.is-busy .grid-scroll {
+  pointer-events: none;
+  opacity: 0.48;
+  transition: opacity 0.12s var(--ease);
 }
 
 .grid-scroll {
@@ -542,10 +567,27 @@
 }
 
 .card-img img {
+  position: relative;
+  z-index: 1;
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+.card-img img.is-fail {
+  opacity: 0;
+}
+
+.card-thumb-ph {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  color: var(--fg-1);
+  letter-spacing: 0.04em;
+  pointer-events: none;
 }
 
 .card-ext {
@@ -606,49 +648,60 @@
   backdrop-filter: blur(4px);
 }
 
-.card-check {
+.card-check-btn {
   position: absolute;
   top: 6px;
   right: 6px;
-  width: 16px;
-  height: 16px;
+  z-index: 2;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   display: grid;
   place-items: center;
+  border: 1.5px solid rgba(255, 255, 255, 0.75);
+  background: rgba(0, 0, 0, 0.4);
+  color: #08110f;
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0;
+  pointer-events: none;
+  cursor: pointer;
+}
+
+.card:not(.is-list):hover .card-check-btn,
+.card.is-selected .card-check-btn,
+.card.is-list .card-check-btn {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.card-check-btn.is-on {
+  border-color: transparent;
   background: var(--accent);
   color: #08110f;
-  font-size: 10px;
-  font-weight: 700;
-  pointer-events: none;
 }
 
-.card:not(.is-list):hover .card-img::after {
-  content: '';
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  border: 1.5px solid rgba(255, 255, 255, 0.8);
-  background: rgba(0, 0, 0, 0.35);
-  pointer-events: none;
+.card-check-btn:hover {
+  border-color: #fff;
+  background: rgba(0, 0, 0, 0.55);
 }
 
-.card.is-selected .card-img::after {
-  content: none;
+.card-check-btn.is-on:hover {
+  background: #63d9d1;
 }
 
 .card:not(.is-list):hover .card-star,
 .card:not(.is-list).is-selected .card-star {
-  right: 26px;
+  right: 30px;
 }
 
-.card.is-list .card-check {
+.card.is-list .card-check-btn {
   top: 2px;
   right: 2px;
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .card.is-list.is-selected .card-star {
@@ -676,11 +729,30 @@
   align-items: center;
   justify-content: center;
   gap: 14px;
-  color: var(--fg-2);
+  color: var(--fg-1);
   pointer-events: none;
 }
 
 .empty-state button {
+  pointer-events: auto;
+}
+
+.empty-state.is-loading {
+  pointer-events: auto;
+  background: rgba(14, 14, 16, 0.35);
+}
+
+.empty-hint {
+  max-width: 320px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--fg-2);
+  line-height: 1.55;
+}
+
+.empty-actions {
+  display: flex;
+  gap: 10px;
   pointer-events: auto;
 }
 
@@ -694,7 +766,7 @@
   gap: 16px;
   padding: 0 16px;
   font-size: 11px;
-  color: var(--fg-2);
+  color: var(--fg-1);
   border-top: 1px solid var(--border);
   background: var(--bg-0);
 }
@@ -1114,11 +1186,16 @@ button:disabled {
   background: var(--bg-1);
   flex-wrap: nowrap;
   overflow-x: auto;
-  scrollbar-width: none;
+  scrollbar-width: thin;
 }
 
 .filterbar::-webkit-scrollbar {
-  display: none;
+  height: 6px;
+}
+
+.filterbar::-webkit-scrollbar-thumb {
+  background: #33333a;
+  border-radius: 3px;
 }
 
 .seg {
@@ -1177,8 +1254,8 @@ button:disabled {
 }
 
 .hue {
-  width: 16px;
-  height: 16px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   border: 2px solid transparent;
   flex-shrink: 0;
@@ -1397,6 +1474,15 @@ html.is-fullscreen .viewer-top {
   place-items: safe center;
   overflow: auto;
   padding: 12px 84px 28px;
+}
+
+.viewer-stage.can-pan {
+  cursor: grab;
+}
+
+.viewer-stage.is-panning {
+  cursor: grabbing;
+  user-select: none;
 }
 
 .seg button.viewer-zoom-step {

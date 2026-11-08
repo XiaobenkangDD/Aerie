@@ -440,18 +440,35 @@ function Grid({
             }}
           >
             <div className="card-img" style={{ height: placeImgH, width: list ? placeImgH : undefined }}>
+              <span className="card-thumb-ph" aria-hidden="true">
+                生成中
+              </span>
               <img
                 src={`aerie-thumb://md/${item.id}`}
                 alt={item.name}
                 loading="lazy"
                 draggable={false}
                 onError={(e) => {
-                  // 缩略图还没生成时显示占位
-                  e.currentTarget.style.display = 'none'
+                  // 缩略图还没生成或已被淘汰：露出底下的「生成中」，别留下空白灰块
+                  e.currentTarget.classList.add('is-fail')
                 }}
+                onLoad={(e) => e.currentTarget.classList.remove('is-fail')}
               />
               <span className="card-ext">{item.ext}</span>
-              {selected.has(item.id) && <span className="card-check">✓</span>}
+              <button
+                type="button"
+                className={`card-check-btn ${selected.has(item.id) ? 'is-on' : ''}`}
+                aria-label={selected.has(item.id) ? '取消选择' : '选择'}
+                title={selected.has(item.id) ? '取消选择' : '多选（等同 ⌘/Ctrl 点击）'}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onSelect(item.id, { meta: true, shift: e.shiftKey })
+                }}
+                onDoubleClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                {selected.has(item.id) ? '✓' : ''}
+              </button>
               {item.missing && <span className="card-missing">缺失</span>}
               {item.star > 0 && <span className="card-star">★{item.star}</span>}
             </div>
@@ -541,6 +558,15 @@ function NavIcon({ scope }: { scope: ItemScope }): React.JSX.Element {
   )
 }
 
+/** 菜单/提示里写快捷键用。macOS 显示符号，其它平台写 Ctrl/Alt。 */
+const IS_APPLE = /Mac|iPhone|iPad/.test(navigator.platform)
+const ACCEL = {
+  openFiles: IS_APPLE ? '⌘O' : 'Ctrl+O',
+  openFolder: IS_APPLE ? '⌥⌘O' : 'Ctrl+Alt+O',
+  pasteImport: IS_APPLE ? '⇧⌘V' : 'Ctrl+Shift+V',
+  search: IS_APPLE ? '⌘F' : 'Ctrl+F',
+} as const
+
 function ImportMenu({
   onFiles,
   onFolder,
@@ -574,9 +600,18 @@ function ImportMenu({
       </button>
       {open && (
         <div className="pop" role="menu">
-          <button onClick={() => run(onFiles)}>导入文件…</button>
-          <button onClick={() => run(onFolder)}>导入文件夹…</button>
-          <button onClick={() => run(onPaste)}>从剪贴板</button>
+          <button onClick={() => run(onFiles)}>
+            <span>导入文件…</span>
+            <kbd>{ACCEL.openFiles}</kbd>
+          </button>
+          <button onClick={() => run(onFolder)}>
+            <span>导入文件夹…</span>
+            <kbd>{ACCEL.openFolder}</kbd>
+          </button>
+          <button onClick={() => run(onPaste)}>
+            <span>从剪贴板</span>
+            <kbd>{ACCEL.pasteImport}</kbd>
+          </button>
         </div>
       )}
     </div>
@@ -1776,13 +1811,29 @@ function App(): React.JSX.Element {
   }, [])
 
   useEffect(() => {
-    return window.aerie.import.onProgress((p) => {
-      setProgress(p.phase === 'done' ? null : p)
+    let doneTimer: number | null = null
+    const unsub = window.aerie.import.onProgress((p) => {
+      if (doneTimer) {
+        window.clearTimeout(doneTimer)
+        doneTimer = null
+      }
       if (p.phase === 'done') {
+        // 短暂停在「完成」，别一闪就消失
+        setProgress({ ...p, done: Math.max(p.done, p.total, 1), total: Math.max(p.total, 1) })
         void refreshAll()
         void reload()
+        doneTimer = window.setTimeout(() => {
+          setProgress(null)
+          doneTimer = null
+        }, 1200)
+        return
       }
+      setProgress(p)
     })
+    return () => {
+      if (doneTimer) window.clearTimeout(doneTimer)
+      unsub()
+    }
   }, [refreshAll, reload])
 
   useEffect(() => {
@@ -2422,19 +2473,27 @@ function App(): React.JSX.Element {
         (e.target as HTMLElement).tagName === 'TEXTAREA'
 
       if (e.key === 'Escape') {
+        // 分层关掉：预览 → 菜单/对话框 → 检视器 → 选择。
+        // 一次 Esc 清空选择，多选时太容易误触。
         if (viewerIndex !== null) {
           setViewerIndex(null)
           return
         }
-        setItemMenu(null)
-        setSideMenu(null)
-        setSmartMenu(null)
-        setSaveSmartOpen(false)
-        setConnectOpen(false)
-        setRenameOpen(false)
-        setSimilar(null)
-        setSelected(new Set())
-        setInspectorId(null)
+        if (itemMenu || sideMenu || smartMenu || saveSmartOpen || connectOpen || renameOpen || similar) {
+          setItemMenu(null)
+          setSideMenu(null)
+          setSmartMenu(null)
+          setSaveSmartOpen(false)
+          setConnectOpen(false)
+          setRenameOpen(false)
+          setSimilar(null)
+          return
+        }
+        if (inspectorId) {
+          setInspectorId(null)
+          return
+        }
+        if (selected.size > 0) setSelected(new Set())
         return
       }
       if (viewerIndex !== null || renameOpen || similar) return
@@ -2495,6 +2554,11 @@ function App(): React.JSX.Element {
     selected,
     inspectorId,
     viewerIndex,
+    itemMenu,
+    sideMenu,
+    smartMenu,
+    saveSmartOpen,
+    connectOpen,
     renameOpen,
     similar,
     refreshAll,
@@ -2674,7 +2738,7 @@ function App(): React.JSX.Element {
               </span>
               <input
                 className="search-input"
-                placeholder="搜索名称、备注、画面文字"
+                placeholder={`搜索名称、备注、画面文字  ${ACCEL.search}`}
                 value={search}
                 onChange={(e) => {
                   setActiveSmartId(null)
@@ -2861,28 +2925,31 @@ function App(): React.JSX.Element {
         )}
 
         {progress && (
-          <div className="progress-bar">
+          <div className={`progress-bar ${progress.phase === 'done' ? 'is-done' : ''}`}>
             <div className="progress-text">
               {progress.phase === 'scanning' && '扫描中…'}
               {progress.phase === 'copying' && `复制进库 ${progress.done}/${progress.total}`}
               {progress.phase === 'importing' && `写入索引 ${progress.total} 项`}
               {progress.phase === 'thumbs' && `生成缩略图 ${progress.done}/${progress.total}`}
+              {progress.phase === 'done' && '导入完成'}
             </div>
             <div className="progress-track">
               <div
                 className="progress-fill"
                 style={{
                   width:
-                    progress.total > 0
-                      ? `${Math.round((progress.done / progress.total) * 100)}%`
-                      : '10%',
+                    progress.phase === 'done'
+                      ? '100%'
+                      : progress.total > 0
+                        ? `${Math.round((progress.done / progress.total) * 100)}%`
+                        : '10%',
                 }}
               />
             </div>
           </div>
         )}
 
-        <div className="content">
+        <div className={`content ${loading ? 'is-busy' : ''}`} aria-busy={loading}>
           <Grid
             items={items}
             complete={complete}
@@ -2936,7 +3003,7 @@ function App(): React.JSX.Element {
           />
 
           {loading && (
-            <div className="empty-state">
+            <div className="empty-state is-loading">
               <p>正在读取素材…</p>
             </div>
           )}
@@ -2960,9 +3027,23 @@ function App(): React.JSX.Element {
                 <button className="btn-primary" onClick={clearNarrowed}>
                   清除筛选
                 </button>
+              ) : !filtered && scope === 'active' && !activeFolder ? (
+                <>
+                  <p className="empty-hint">
+                    把文件拖进来，或用导入 / {ACCEL.pasteImport} 从剪贴板粘贴
+                  </p>
+                  <div className="empty-actions">
+                    <button className="btn-primary" onClick={() => void doImportFolder()}>
+                      导入文件夹
+                    </button>
+                    <button className="btn-ghost" onClick={() => void doImportFiles()}>
+                      导入文件
+                    </button>
+                  </div>
+                </>
               ) : (
                 !filtered && (
-                  <button className="btn-primary" onClick={doImportFolder}>
+                  <button className="btn-primary" onClick={() => void doImportFolder()}>
                     导入一个文件夹
                   </button>
                 )
