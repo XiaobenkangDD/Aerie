@@ -119,9 +119,9 @@ Schema changes are in the next section. Do not write SQL in the UI.
 
 ## 数据库迁移 / Schema migrations
 
-当前 `SCHEMA_VERSION` 是 6，定义在 `src/main/db/index.ts`。
+当前 `SCHEMA_VERSION` 是 7，定义在 `src/main/db/index.ts`。
 
-`SCHEMA_VERSION` is 6, in `src/main/db/index.ts`.
+`SCHEMA_VERSION` is 7, in `src/main/db/index.ts`.
 
 老库打开时会先执行 `SCHEMA_SQL`。那里的 `CREATE TABLE IF NOT EXISTS` 不会给已经存在的表补新列。所以：
 

@@ -73,6 +73,28 @@ function copyDestination(libraryRoot: string, id: string, ext: string): string {
   return path.join(libraryRoot, 'files', id.slice(0, 2), `${id}.${ext}`)
 }
 
+/** 分批把已入库的 file_path / source_path 装进 Set，给扫描去重用。 */
+function loadKnownPaths(db: DB, paths: string[]): Set<string> {
+  const known = new Set<string>()
+  const unique = [...new Set(paths.filter(Boolean))]
+  const BATCH = 400
+  for (let i = 0; i < unique.length; i += BATCH) {
+    const slice = unique.slice(i, i + BATCH)
+    const placeholders = slice.map((_, j) => `@p${j}`).join(',')
+    const params: Record<string, string> = {}
+    for (let j = 0; j < slice.length; j++) params[`p${j}`] = slice[j]!
+    const rows = db
+      .prepare(
+        `SELECT file_path AS p FROM items WHERE file_path IN (${placeholders})
+         UNION
+         SELECT source_path AS p FROM items WHERE source_path IN (${placeholders})`,
+      )
+      .all(params) as { p: string | null }[]
+    for (const row of rows) if (row.p) known.add(row.p)
+  }
+  return known
+}
+
 /** 扫描路径，收集所有可导入文件 */
 function scan(paths: string[], recursive: boolean, libraryRoot: string): Omit<Candidate, 'id'>[] {
   const out: Omit<Candidate, 'id'>[] = []
@@ -154,8 +176,11 @@ export async function runImport(
     return { imported: 0, skipped: 0, failed: 0, errors: [] }
   }
 
-  const known = db.prepare(
-    `SELECT 1 AS n FROM items WHERE file_path = ? OR source_path = ? LIMIT 1`,
+  // 批量查已入库路径，避免「每个文件一次 SELECT」。
+  // file_path / source_path 都有索引；分批 IN 比逐条 OR 查询稳得多。
+  const knownPaths = loadKnownPaths(
+    db,
+    found.flatMap((c) => [c.filePath, c.sourcePath]),
   )
   const insert = db.prepare(`
     INSERT INTO items (id, name, ext, file_path, source_path, file_size, width, height, mtime, added_at, star, has_thumb)
@@ -172,7 +197,7 @@ export async function runImport(
   for (let i = 0; i < found.length; i++) {
     const c = found[i]
     if (!c) continue
-    if (known.get(c.filePath, c.sourcePath)) {
+    if (knownPaths.has(c.filePath) || knownPaths.has(c.sourcePath)) {
       skipped++
       continue
     }
@@ -235,6 +260,8 @@ export async function runImport(
     `UPDATE items SET width = ?, height = ?, has_thumb = ?, phash = ?, palette = ?, hue = ?, taken_at = ? WHERE id = ?`,
   )
   let done = 0
+  // 目录只建一次，别在每张图的热路径上 mkdir
+  fs.mkdirSync(path.join(thumbsDir, 'md'), { recursive: true })
 
   const jobs = insertedIds.map((it) =>
     thumbQueue.run(async () => {
@@ -247,7 +274,6 @@ export async function runImport(
       let taken = 0
       if (isRasterExt(it.ext)) {
         const thumbPath = path.join(thumbsDir, 'md', `${it.id}.webp`)
-        fs.mkdirSync(path.dirname(thumbPath), { recursive: true })
         const facts = await describeRaster(it.filePath, { thumbPath, thumbPx: SIZES.md })
         if (facts) {
           width = facts.width
