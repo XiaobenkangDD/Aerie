@@ -190,6 +190,7 @@ function Grid({
   cardSize,
 }: GridProps): React.JSX.Element {
   const scrollRef = useRef<HTMLDivElement>(null)
+  const scrollRaf = useRef(0)
   const [scrollTop, setScrollTop] = useState(0)
   const [viewport, setViewport] = useState({ w: 0, h: 0 })
 
@@ -249,7 +250,9 @@ function Grid({
       places.push({ idx, item, x: pad + col * (cardW + gap), y, w: cardW, h, imgH: imageH })
       colH[col] = y + h + gap
     }
-    return { places, totalH: Math.max(pad, ...colH) + pad }
+    // 按 y 排序，滚动裁剪时可以二分定位，避免每次线性扫全部卡片
+    const byY = places.slice().sort((a, b) => a.y - b.y || a.x - b.x)
+    return { places, byY, totalH: Math.max(pad, ...colH) + pad }
   }, [masonry, items, cols, cardW, gap, pad])
 
   // 高度按总数算，这样滚动条长度反映整个库，而不是已加载的部分
@@ -267,8 +270,19 @@ function Grid({
   if (flow) {
     const top = scrollTop - 800
     const bottom = scrollTop + viewport.h + 800
-    for (const place of flow.places) {
-      if (place.y + place.h < top || place.y > bottom) continue
+    const arr = flow.byY
+    let lo = 0
+    let hi = arr.length
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1
+      const place = arr[mid]!
+      if (place.y + place.h < top) lo = mid + 1
+      else hi = mid
+    }
+    for (let i = lo; i < arr.length; i++) {
+      const place = arr[i]!
+      if (place.y > bottom) break
+      if (place.y + place.h < top) continue
       visible.push(place)
     }
   } else {
@@ -315,7 +329,7 @@ function Grid({
       rows,
       scrollTop,
     }
-  })
+  }, [viewport.w, viewport.h, cols, rows, scrollTop])
 
   // 受控跳转：seek 之后让目标行对齐到视口顶部
   //
@@ -382,12 +396,17 @@ function Grid({
       className="grid-scroll"
       onScroll={(e) => {
         const el = e.currentTarget
-        setScrollTop(el.scrollTop)
         // 顺带重测：滚动条出现/面板开合时 ResizeObserver 不一定回调，
         // 滚动是高频事件，在这里校准最可靠
         const w = el.clientWidth
         const h = el.clientHeight
         setViewport((prev) => (prev.w === w && prev.h === h ? prev : { w, h }))
+        // 每帧最多一次 setScrollTop，避免滚动风暴里重复渲染
+        if (scrollRaf.current) return
+        scrollRaf.current = requestAnimationFrame(() => {
+          scrollRaf.current = 0
+          setScrollTop(el.scrollTop)
+        })
       }}
     >
       <div style={{ height: totalH, position: 'relative' }}>

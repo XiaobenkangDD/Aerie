@@ -249,7 +249,8 @@ export function seekToPercent(db: DB, opts: QueryOptions, percent: number): Curs
   const total = countForSeek(db, opts)
   if (total === 0) return null
   const clamped = Math.max(0, Math.min(1, percent))
-  return seekToRow(db, opts, Math.floor(clamped * total))
+  // 把总数传进去，避免 seekToRow 再 COUNT 一遍
+  return seekToRow(db, opts, Math.floor(clamped * total), total)
 }
 
 /**
@@ -259,7 +260,12 @@ export function seekToPercent(db: DB, opts: QueryOptions, percent: number): Curs
  * （438/634*634 未必正好是 438），用户看到的就是差一行。
  * 滚动条本来就是按行对齐的，直接把整数行号传进来最稳。
  */
-export function seekToRow(db: DB, opts: QueryOptions, row: number): Cursor | null {
+export function seekToRow(
+  db: DB,
+  opts: QueryOptions,
+  row: number,
+  knownTotal?: number,
+): Cursor | null {
   const sortField = (opts.sort ?? 'addedAt') as SortField
   // 手动排序没有覆盖索引，大库里跳转退回 offset。文件夹通常远小于整库。
   if (sortField === 'manual' || !SEEK_INDEXED.has(sortField)) return null
@@ -269,9 +275,9 @@ export function seekToRow(db: DB, opts: QueryOptions, row: number): Cursor | nul
   if (!pushFilters(db, opts, where, params)) return null
 
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
-  const total = (
-    db.prepare(`SELECT COUNT(*) AS n FROM items i ${whereSql}`).get(params) as { n: number }
-  ).n
+  const total =
+    knownTotal ??
+    (db.prepare(`SELECT COUNT(*) AS n FROM items i ${whereSql}`).get(params) as { n: number }).n
   if (total === 0) return null
 
   const targetRow = Math.max(0, Math.min(row, total - 1))
@@ -310,7 +316,7 @@ function countForSeek(db: DB, opts: QueryOptions): number {
 }
 
 /** 有 (sortCol, id) 复合索引的排序字段，可以做覆盖索引 seek */
-const SEEK_INDEXED = new Set<SortField>(['addedAt', 'name', 'fileSize', 'mtime', 'star'])
+const SEEK_INDEXED = new Set<SortField>(['addedAt', 'name', 'fileSize', 'mtime', 'star', 'takenAt'])
 
 /**
  * 列表只取网格用得到的列。
@@ -455,25 +461,26 @@ export function getItemDetail(db: DB, id: string): ItemDetail | null {
 }
 
 export function listTags(db: DB): Tag[] {
+  // 一次 JOIN + GROUP BY，避免每个标签一条相关子查询
   return db
     .prepare(
       `SELECT t.id, t.name, t.color, t.parent_id AS parentId,
-              (SELECT COUNT(*) FROM item_tags it
-                 JOIN items i ON i.id = it.item_id
-                WHERE it.tag_id = t.id AND i.deleted_at IS NULL) AS count
+              COUNT(i.id) AS count
        FROM tags t
+       LEFT JOIN item_tags it ON it.tag_id = t.id
+       LEFT JOIN items i ON i.id = it.item_id AND i.deleted_at IS NULL
+       GROUP BY t.id
        ORDER BY t.name COLLATE NOCASE`,
     )
     .all() as Tag[]
 }
 
 export function listFolders(db: DB): Folder[] {
+  // 计数走聚合；封面仍用相关子查询（每文件夹最多一次，且有 folder_id+sort_index 索引）
   return db
     .prepare(
       `SELECT f.id, f.name, f.color, f.parent_id AS parentId,
-              (SELECT COUNT(*) FROM item_folders it
-                 JOIN items i ON i.id = it.item_id
-                WHERE it.folder_id = f.id AND i.deleted_at IS NULL) AS count,
+              COUNT(i.id) AS count,
               CASE
                 WHEN f.cover_item_id IS NOT NULL AND EXISTS (
                   SELECT 1 FROM items c
@@ -481,13 +488,16 @@ export function listFolders(db: DB): Folder[] {
                 ) THEN f.cover_item_id
                 ELSE (
                   SELECT jf.item_id FROM item_folders jf
-                  JOIN items i ON i.id = jf.item_id
-                  WHERE jf.folder_id = f.id AND i.deleted_at IS NULL
-                  ORDER BY jf.sort_index ASC, i.added_at DESC
+                  JOIN items ii ON ii.id = jf.item_id
+                  WHERE jf.folder_id = f.id AND ii.deleted_at IS NULL
+                  ORDER BY jf.sort_index ASC, ii.added_at DESC
                   LIMIT 1
                 )
               END AS coverItemId
        FROM folders f
+       LEFT JOIN item_folders it ON it.folder_id = f.id
+       LEFT JOIN items i ON i.id = it.item_id AND i.deleted_at IS NULL
+       GROUP BY f.id
        ORDER BY f.name COLLATE NOCASE`,
     )
     .all() as Folder[]

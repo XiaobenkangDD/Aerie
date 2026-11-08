@@ -88,6 +88,7 @@ CREATE INDEX IF NOT EXISTS idx_items_cursor_name  ON items(name COLLATE NOCASE, 
 CREATE INDEX IF NOT EXISTS idx_items_cursor_size  ON items(file_size, id);
 CREATE INDEX IF NOT EXISTS idx_items_cursor_mtime ON items(mtime, id);
 CREATE INDEX IF NOT EXISTS idx_items_cursor_star  ON items(star, id);
+-- taken_at / folder_sort 索引放 ensureV7：老库要先 ALTER 补列，SCHEMA_SQL 里提前建会失败。
 
 -- ── 标签 ──────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS tags (

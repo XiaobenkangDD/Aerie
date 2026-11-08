@@ -115,7 +115,8 @@ export async function ensureThumb(
       await sharp(filePath, { failOn: 'none', animated: false })
         .rotate() // 按 EXIF 方向摆正
         .resize(px, px, { fit: 'inside', withoutEnlargement: true })
-        .webp({ quality: 82, effort: 4 })
+        // effort 2：缩略图够用，编码明显比 4 快；质量仍由 quality 控制
+        .webp({ quality: 82, effort: 2 })
         .toFile(out)
       if (fs.existsSync(out) && fs.statSync(out).size > 0) {
         return { ok: true, via: 'sharp' }
@@ -157,7 +158,7 @@ async function quickLook(filePath: string, px: number, out: string): Promise<boo
 
     await sharp(src)
       .resize(px, px, { fit: 'inside', withoutEnlargement: true })
-      .webp({ quality: 82, effort: 4 })
+      .webp({ quality: 82, effort: 2 })
       .toFile(out)
 
     return fs.existsSync(out) && fs.statSync(out).size > 0

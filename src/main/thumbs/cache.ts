@@ -88,6 +88,8 @@ export class ThumbCache {
   private readonly budgetBytes: number
   /** 文件路径 → 上次 touch 的时间戳 */
   private readonly touched = new Map<string, number>()
+  /** 已排队、尚未落到磁盘的 touch，避免同一文件重复 setImmediate */
+  private readonly pendingDisk = new Set<string>()
   private sweeping = false
   private lastSweepAt = 0
 
@@ -103,7 +105,8 @@ export class ThumbCache {
   /**
    * 记录一次访问，用于 LRU 排序。
    *
-   * 同步执行且吞掉所有异常：这是在协议处理的热路径上，
+   * 内存记账同步完成；磁盘 utimes 推到下一轮事件循环，
+   * 避免 aerie-thumb 热路径上同步 stat/utimes 拖慢主进程。
    * 缓存目录不可写也不能让缩略图加载失败。
    */
   touch(file: string): void {
@@ -115,13 +118,19 @@ export class ThumbCache {
     // 防止长期运行后无限增长
     if (this.touched.size > MAX_TOUCH_ENTRIES) this.touched.clear()
 
-    try {
-      const st = fs.statSync(file)
-      // 只更新 atime，保留 mtime
-      fs.utimesSync(file, new Date(now), st.mtime)
-    } catch {
-      // 文件可能刚被淘汰掉了，忽略
-    }
+    if (this.pendingDisk.has(file)) return
+    this.pendingDisk.add(file)
+    setImmediate(() => {
+      this.pendingDisk.delete(file)
+      const stamp = this.touched.get(file) ?? Date.now()
+      try {
+        const st = fs.statSync(file)
+        // 只更新 atime，保留 mtime
+        fs.utimesSync(file, new Date(stamp), st.mtime)
+      } catch {
+        // 文件可能刚被淘汰掉了，忽略
+      }
+    })
   }
 
   /** 删除某个条目的全部缩略图（条目被删除时调用） */
