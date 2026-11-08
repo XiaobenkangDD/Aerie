@@ -607,6 +607,7 @@ function StarSet({ onStar }: { onStar: (star: number) => void }): React.JSX.Elem
 
 function BatchBar({
   count,
+  totalHint,
   scope,
   folders,
   tags,
@@ -621,6 +622,8 @@ function BatchBar({
   onLeave,
 }: {
   count: number
+  /** 当前筛选总数；与 count 相等时标明「全部」 */
+  totalHint: number
   scope: ItemScope
   folders: Folder[]
   tags: Tag[]
@@ -638,7 +641,10 @@ function BatchBar({
   const tagOptions = walkTree(tags, null, 0)
   return (
     <div className="batchbar">
-      <span className="batch-count">已选 {count}</span>
+      <span className="batch-count">
+        已选 {count.toLocaleString()}
+        {count > 0 && count === totalHint ? '（全部）' : ''}
+      </span>
       <StarSet onStar={onStar} />
       <select
         value=""
@@ -2147,6 +2153,42 @@ function App(): React.JSX.Element {
     [items],
   )
 
+  /**
+   * 大图按「整库绝对下标」翻页。窗口外就 seek 一页过来，
+   * 这样超过 PAGE_SIZE 也能一直左右键看下去。
+   */
+  const goViewerAbs = useCallback(
+    async (abs: number): Promise<void> => {
+      if (abs < 0 || abs >= total) return
+      if (complete) {
+        setViewerIndex(abs)
+        setInspectorId(items[abs]?.id ?? null)
+        return
+      }
+      const local = abs - windowStart
+      if (local >= 0 && local < items.length) {
+        setViewerIndex(local)
+        setInspectorId(items[local]?.id ?? null)
+        return
+      }
+      const start = Math.max(0, abs - Math.floor(PAGE_SIZE / 3))
+      const cursor = start === 0 ? null : await window.aerie.items.seek(query, start)
+      const res = await window.aerie.items.query({
+        ...query,
+        limit: PAGE_SIZE,
+        cursor: cursor ?? undefined,
+      })
+      setWindowStart(start)
+      setItems(res.items)
+      setTotal(res.total)
+      setNextCursor(res.nextCursor)
+      const nextLocal = Math.max(0, Math.min(res.items.length - 1, abs - start))
+      setViewerIndex(nextLocal)
+      setInspectorId(res.items[nextLocal]?.id ?? null)
+    },
+    [total, complete, windowStart, items, query],
+  )
+
   const doTrash = useCallback(
     async (ids: string[]): Promise<void> => {
       if (ids.length === 0) return
@@ -2282,7 +2324,19 @@ function App(): React.JSX.Element {
       }
       if (command === 'select-all') {
         if (isTextField(active)) active.select()
-        else setSelected(new Set(items.map((item) => item.id)))
+        else if (complete) setSelected(new Set(items.map((item) => item.id)))
+        else {
+          // 大库：选中当前筛选下的全部 id，批量操作才不会只动这一页
+          void (async () => {
+            const ids = await window.aerie.items.queryIds(query)
+            setSelected(new Set(ids))
+            flash(
+              ids.length >= total
+                ? `已选全部 ${ids.length.toLocaleString()} 项`
+                : `已选 ${ids.length.toLocaleString()} 项`,
+            )
+          })()
+        }
         return
       }
       if (command === 'focus-search') {
@@ -2394,6 +2448,9 @@ function App(): React.JSX.Element {
     library,
     selected,
     viewerIndex,
+    query,
+    complete,
+    total,
     doPaste,
     afterMutation,
     doCreateLibrary,
@@ -2839,6 +2896,7 @@ function App(): React.JSX.Element {
         {selected.size > 0 && (
           <BatchBar
             count={selected.size}
+            totalHint={total}
             scope={scope}
             folders={folders}
             tags={tags}
@@ -3016,7 +3074,9 @@ function App(): React.JSX.Element {
         <Viewer
           items={items}
           index={Math.min(viewerIndex, items.length - 1)}
-          onIndex={setViewerIndex}
+          absIndex={windowStart + Math.min(viewerIndex, items.length - 1)}
+          totalCount={total}
+          onAbsIndex={(abs) => void goViewerAbs(abs)}
           onClose={() => setViewerIndex(null)}
         />
       )}

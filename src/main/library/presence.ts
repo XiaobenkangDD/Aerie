@@ -12,20 +12,45 @@ export interface PresenceScan {
   missing: number
 }
 
-export function refreshPresence(db: DB): PresenceScan {
-  const rows = db
-    .prepare(`SELECT id, file_path AS filePath, missing FROM items WHERE deleted_at IS NULL`)
-    .all() as { id: string; filePath: string; missing: number }[]
+const CHUNK = 400
+
+/**
+ * 分块检查原文件是否还在。每块之间让出事件循环，大库不会把主进程卡死。
+ */
+export async function refreshPresence(db: DB): Promise<PresenceScan> {
   const write = db.prepare(`UPDATE items SET missing = ? WHERE id = ?`)
+  let checked = 0
   let missing = 0
-  db.transaction(() => {
+  let afterId = ''
+
+  for (;;) {
+    const rows = db
+      .prepare(
+        `SELECT id, file_path AS filePath, missing FROM items
+         WHERE deleted_at IS NULL AND id > ?
+         ORDER BY id
+         LIMIT ?`,
+      )
+      .all(afterId, CHUNK) as { id: string; filePath: string; missing: number }[]
+    if (rows.length === 0) break
+
+    const updates: { gone: number; id: string }[] = []
     for (const row of rows) {
       const gone = fs.existsSync(row.filePath) ? 0 : 1
       if (gone) missing++
-      if (gone !== row.missing) write.run(gone, row.id)
+      if (gone !== row.missing) updates.push({ gone, id: row.id })
+      afterId = row.id
+      checked++
     }
-  })()
-  return { checked: rows.length, missing }
+    if (updates.length > 0) {
+      db.transaction((list: { gone: number; id: string }[]) => {
+        for (const u of list) write.run(u.gone, u.id)
+      })(updates)
+    }
+    await new Promise<void>((resolve) => setImmediate(resolve))
+  }
+
+  return { checked, missing }
 }
 
 /** 把一条素材的路径改到新文件。尺寸和指纹清掉，等后台重算。 */
@@ -100,16 +125,16 @@ export function relinkFolder(db: DB, dir: string): RelinkFolderResult {
   }
   walk(root, 0)
 
-  const missing = db
+  const missingRows = db
     .prepare(`SELECT id, name, ext FROM items WHERE deleted_at IS NULL AND missing = 1`)
     .all() as { id: string; name: string; ext: string }[]
 
   const ids: string[] = []
-  for (const item of missing) {
+  for (const item of missingRows) {
     const hits = index.get(`${item.name}.${item.ext}`.toLowerCase()) ?? []
     if (hits.length !== 1) continue
     try {
-      relinkItem(db, item.id, hits[0])
+      relinkItem(db, item.id, hits[0]!)
       ids.push(item.id)
     } catch {
       // 已经在库里，或文件在扫描后又没了
@@ -119,5 +144,6 @@ export function relinkFolder(db: DB, dir: string): RelinkFolderResult {
   const still = db
     .prepare(`SELECT COUNT(*) AS n FROM items WHERE deleted_at IS NULL AND missing = 1`)
     .get() as { n: number }
+
   return { linked: ids.length, stillMissing: still.n, ids }
 }

@@ -505,29 +505,58 @@ export function extStats(db: DB): { ext: string; count: number }[] {
 }
 
 export function libraryStats(db: DB): LibraryStats {
-  const one = (sql: string): number => (db.prepare(sql).get() as { n: number }).n
-  return {
-    active: one(`SELECT COUNT(*) AS n FROM items WHERE deleted_at IS NULL`),
-    trash: one(`SELECT COUNT(*) AS n FROM items WHERE deleted_at IS NOT NULL`),
-    uncategorized: one(
-      `SELECT COUNT(*) AS n FROM items i
-       WHERE i.deleted_at IS NULL
-         AND NOT EXISTS (SELECT 1 FROM item_folders f WHERE f.item_id = i.id)`,
-    ),
-    untagged: one(
-      `SELECT COUNT(*) AS n FROM items i
-       WHERE i.deleted_at IS NULL
-         AND NOT EXISTS (SELECT 1 FROM item_tags t WHERE t.item_id = i.id)`,
-    ),
-    starred: one(`SELECT COUNT(*) AS n FROM items WHERE deleted_at IS NULL AND star > 0`),
-    duplicates: one(
-      `SELECT COUNT(*) AS n FROM items
-       WHERE deleted_at IS NULL AND phash IS NOT NULL AND phash IN (
-         SELECT phash FROM items
-         WHERE deleted_at IS NULL AND phash IS NOT NULL
-         GROUP BY phash HAVING COUNT(*) > 1
-       )`,
-    ),
-    missing: one(`SELECT COUNT(*) AS n FROM items WHERE deleted_at IS NULL AND missing = 1`),
-  }
+  // 一次往返拿齐侧栏数字；重复项用 HAVING 聚合，避免 IN 子查询扫两遍。
+  const row = db
+    .prepare(
+      `SELECT
+         (SELECT COUNT(*) FROM items WHERE deleted_at IS NULL) AS active,
+         (SELECT COUNT(*) FROM items WHERE deleted_at IS NOT NULL) AS trash,
+         (SELECT COUNT(*) FROM items i
+           WHERE i.deleted_at IS NULL
+             AND NOT EXISTS (SELECT 1 FROM item_folders f WHERE f.item_id = i.id)) AS uncategorized,
+         (SELECT COUNT(*) FROM items i
+           WHERE i.deleted_at IS NULL
+             AND NOT EXISTS (SELECT 1 FROM item_tags t WHERE t.item_id = i.id)) AS untagged,
+         (SELECT COUNT(*) FROM items WHERE deleted_at IS NULL AND star > 0) AS starred,
+         (SELECT COALESCE(SUM(c), 0) FROM (
+            SELECT COUNT(*) AS c FROM items
+            WHERE deleted_at IS NULL AND phash IS NOT NULL
+            GROUP BY phash HAVING COUNT(*) > 1
+          )) AS duplicates,
+         (SELECT COUNT(*) FROM items WHERE deleted_at IS NULL AND missing = 1) AS missing`,
+    )
+    .get() as LibraryStats
+  return row
+}
+
+/**
+ * 只取 id，给「全选符合条件的全部」用。
+ * 不上限到 50 万：再大就提示用户收窄筛选，避免一次塞爆渲染进程。
+ */
+export function queryItemIds(db: DB, opts: QueryOptions): string[] {
+  const where: string[] = []
+  const params: Record<string, unknown> = {}
+  if (!pushFilters(db, opts, where, params)) return []
+
+  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
+  const sortField = (opts.sort ?? 'addedAt') as SortField
+  const manual = sortField === 'manual' && !!opts.folderId
+  const fromSql = manual
+    ? `items i LEFT JOIN item_folders ord ON ord.item_id = i.id AND ord.folder_id = @ordFolder`
+    : `items i`
+  if (manual) params.ordFolder = opts.folderId
+
+  const sortCol = manual
+    ? 'IFNULL(ord.sort_index, 0)'
+    : (SORT_COLUMNS[sortField as Exclude<SortField, 'manual'>] ?? SORT_COLUMNS.addedAt)
+  const order = opts.order === 'asc' ? 'ASC' : 'DESC'
+
+  const rows = db
+    .prepare(
+      `SELECT i.id AS id FROM ${fromSql} ${whereSql}
+       ORDER BY ${sortCol} ${order}, i.id ${order}
+       LIMIT 500000`,
+    )
+    .all(params) as { id: string }[]
+  return rows.map((r) => r.id)
 }

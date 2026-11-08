@@ -73,51 +73,70 @@ function copyDestination(libraryRoot: string, id: string, ext: string): string {
   return path.join(libraryRoot, 'files', id.slice(0, 2), `${id}.${ext}`)
 }
 
-/** 扫描路径，收集所有可导入文件 */
-function scan(paths: string[], recursive: boolean, libraryRoot: string): Omit<Candidate, 'id'>[] {
+const yieldTick = (): Promise<void> => new Promise((resolve) => setImmediate(resolve))
+
+/**
+ * 扫描路径，收集所有可导入文件。
+ * 用栈迭代 + 隔一段让出事件循环，大文件夹不会把主进程卡死。
+ */
+async function scan(
+  paths: string[],
+  recursive: boolean,
+  libraryRoot: string,
+  onProgress: (found: number) => void,
+): Promise<Omit<Candidate, 'id'>[]> {
   const out: Omit<Candidate, 'id'>[] = []
   const seen = new Set<string>()
   // 用户点名要导入的路径，哪怕在库里面（浏览器收藏的 inbox）也要收。
   // 扫到旁边的 .aerie 则整段跳过，避免把缩略图再导一遍。
   const explicit = new Set(paths.map((p) => path.resolve(p)))
+  const stack = [...paths]
+  let steps = 0
 
-  const visit = (p: string): void => {
+  while (stack.length > 0) {
+    const p = stack.pop()!
+    if (++steps % 64 === 0) {
+      onProgress(out.length)
+      await yieldTick()
+    }
+
     let st: fs.Stats
     try {
       st = fs.statSync(p)
     } catch {
-      return
+      continue
     }
 
     if (st.isDirectory()) {
-      if (!recursive) return
+      if (!recursive) continue
       const absDir = path.resolve(p)
       if (!explicit.has(absDir) && (isInside(absDir, libraryRoot) || path.basename(absDir).endsWith('.aerie'))) {
-        return
+        continue
       }
       let entries: fs.Dirent[]
       try {
         entries = fs.readdirSync(p, { withFileTypes: true })
       } catch {
-        return
+        continue
       }
-      for (const e of entries) {
+      for (let i = entries.length - 1; i >= 0; i--) {
+        const e = entries[i]!
         // 跳过隐藏文件和 macOS 的元数据
         if (e.name.startsWith('.')) continue
         if (e.name === 'node_modules') continue
-        visit(path.join(p, e.name))
+        stack.push(path.join(p, e.name))
       }
-      return
+      continue
     }
 
-    if (!st.isFile()) return
-    if (st.size === 0) return
+    if (!st.isFile()) continue
+    if (st.size === 0) continue
 
     const ext = path.extname(p).slice(1).toLowerCase()
-    if (!SUPPORTED_EXTS.has(ext)) return
+    if (!SUPPORTED_EXTS.has(ext)) continue
 
     const abs = path.resolve(p)
-    if (seen.has(abs)) return
+    if (seen.has(abs)) continue
     seen.add(abs)
 
     out.push({
@@ -130,7 +149,6 @@ function scan(paths: string[], recursive: boolean, libraryRoot: string): Omit<Ca
     })
   }
 
-  for (const p of paths) visit(p)
   return out
 }
 
@@ -146,7 +164,9 @@ export async function runImport(
 
   onProgress({ done: 0, total: 0, current: '', phase: 'scanning' })
 
-  const found = scan(req.paths, req.recursive, libraryRoot)
+  const found = await scan(req.paths, req.recursive, libraryRoot, (n) => {
+    onProgress({ done: 0, total: n, current: '', phase: 'scanning' })
+  })
   const total = found.length
 
   if (total === 0) {

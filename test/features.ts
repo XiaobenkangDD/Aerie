@@ -9,7 +9,7 @@ import path from 'node:path'
 import Database from 'better-sqlite3'
 import sharp from 'sharp'
 import { openDatabase, closeDatabase, SCHEMA_VERSION } from '../src/main/db/index.js'
-import { libraryStats, listFolders, queryItems, seekToRow } from '../src/main/library/query.js'
+import { libraryStats, listFolders, queryItemIds, queryItems, seekToRow } from '../src/main/library/query.js'
 import {
   assignFolders,
   assignTags,
@@ -204,6 +204,11 @@ async function main(): Promise<void> {
     seekPage.items[1]?.id === seekB && seekNext.items[0]?.id === seekB,
     seekPage.items.map((item) => item.name).join(' '),
   )
+  const idList = queryItemIds(db, seekOpts)
+  check('queryIds 与筛选结果同序', idList[0] === seekPage.items[0]?.id && idList[1] === seekB)
+  const statsOnce = libraryStats(db)
+  check('统计有活动项', statsOnce.active > 0)
+  check('统计重复项非负', statsOnce.duplicates >= 0)
 
   console.log('\n[标注与画面文字]')
   const saved = setAnnotations(db, matchId, [
@@ -368,7 +373,7 @@ async function main(): Promise<void> {
   check('拍摄时间降序', byTaken[0]?.id === land && byTaken[1]?.id === port)
 
   db.prepare(`UPDATE items SET file_path = ? WHERE id = ?`).run(path.join(tmp, 'not-there.jpg'), missingId)
-  const scan = refreshPresence(db)
+  const scan = await refreshPresence(db)
   check('扫出缺失', scan.missing >= 1)
   check(
     '缺失视图',
