@@ -435,21 +435,24 @@ export function getItemDetail(db: DB, id: string): ItemDetail | null {
     | undefined
   if (!row) return null
 
+  // 检视器只要「挂在这条上的标签/文件夹」，不需要全局 count。
+  // 去掉相关 COUNT，方向键连按时少做很多聚合。
   const tags = db
     .prepare(
-      `SELECT t.*, (SELECT COUNT(*) FROM item_tags WHERE tag_id = t.id) AS count
+      `SELECT t.id, t.name, t.color, t.parent_id AS parentId, 0 AS count
        FROM tags t JOIN item_tags it ON it.tag_id = t.id
        WHERE it.item_id = ? ORDER BY t.name COLLATE NOCASE`,
     )
-    .all(id) as (Tag & { count: number })[]
+    .all(id) as Tag[]
 
   const folders = db
     .prepare(
-      `SELECT f.*, (SELECT COUNT(*) FROM item_folders WHERE folder_id = f.id) AS count
+      `SELECT f.id, f.name, f.color, f.parent_id AS parentId, 0 AS count,
+              f.cover_item_id AS coverItemId
        FROM folders f JOIN item_folders it ON it.folder_id = f.id
        WHERE it.item_id = ? ORDER BY f.name COLLATE NOCASE`,
     )
-    .all(id) as (Folder & { count: number })[]
+    .all(id) as Folder[]
 
   return { ...toItem(row), tags, folders }
 }
