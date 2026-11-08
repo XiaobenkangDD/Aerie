@@ -542,10 +542,27 @@
 }
 
 .card-img img {
+  position: relative;
+  z-index: 1;
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+.card-img img.is-fail {
+  opacity: 0;
+}
+
+.card-thumb-ph {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  color: var(--fg-1);
+  letter-spacing: 0.04em;
+  pointer-events: none;
 }
 
 .card-ext {
@@ -676,12 +693,35 @@
   align-items: center;
   justify-content: center;
   gap: 14px;
-  color: var(--fg-2);
+  color: var(--fg-1);
   pointer-events: none;
 }
 
 .empty-state button {
   pointer-events: auto;
+}
+
+.empty-hint {
+  max-width: 320px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--fg-2);
+  line-height: 1.55;
+}
+
+.empty-actions {
+  display: flex;
+  gap: 10px;
+  pointer-events: auto;
+}
+
+.layout-hint {
+  flex-shrink: 0;
+  padding: 6px 16px;
+  font-size: 12px;
+  color: var(--fg-1);
+  background: var(--accent-bg);
+  border-bottom: 1px solid var(--border);
 }
 
 /* ── 状态栏 ──────────────────────────────────────────────── */
@@ -856,7 +896,14 @@
 .tagline {
   font-size: 13px;
   color: var(--fg-1);
-  margin-bottom: 28px;
+  margin-bottom: 8px;
+}
+
+.welcome-hint {
+  font-size: 12px;
+  color: var(--fg-2);
+  line-height: 1.55;
+  margin-bottom: 24px;
 }
 
 .welcome-choices {

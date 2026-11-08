@@ -75,7 +75,8 @@ function registerThumbProtocol(): void {
       const url = new URL(request.url)
       // aerie-thumb://md/<uuid> → host=md, pathname=/<uuid>
       const size = url.hostname || 'md'
-      const itemId = url.pathname.replace(/^\//, '')
+      // 去掉可能的 cache-bust 查询串，只留 uuid
+      const itemId = url.pathname.replace(/^\//, '').split('?')[0] ?? ''
       const file = resolveThumbPath(itemId, size)
 
       if (!file) return new Response('bad request', { status: 400 })

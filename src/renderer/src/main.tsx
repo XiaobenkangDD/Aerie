@@ -134,6 +134,50 @@ function useDebounced<T>(value: T, ms: number): T {
 // 为什么不引 react-window：图片网格是「列数随宽度变化」的二维虚拟化，
 // 现成库要么只做一维，要么 API 别扭。自己算行高更直接。
 
+/** 缩略图未就绪时显示「生成中」，并在 epoch 变化或定时后自动重试。 */
+function CardThumb({
+  itemId,
+  name,
+  epoch,
+}: {
+  itemId: string
+  name: string
+  epoch: number
+}): React.JSX.Element {
+  const [fail, setFail] = useState(false)
+  const [retry, setRetry] = useState(0)
+
+  useEffect(() => {
+    setFail(false)
+  }, [itemId, epoch, retry])
+
+  useEffect(() => {
+    if (!fail) return
+    // 导入/重建过程中隔一会儿再请求，不必整页刷新
+    const delay = Math.min(4000, 800 + retry * 600)
+    const timer = window.setTimeout(() => setRetry((n) => n + 1), delay)
+    return () => window.clearTimeout(timer)
+  }, [fail, retry, epoch])
+
+  return (
+    <>
+      <span className="card-thumb-ph" aria-hidden="true">
+        生成中
+      </span>
+      <img
+        key={`${itemId}-${epoch}-${retry}`}
+        src={`aerie-thumb://md/${itemId}`}
+        alt={name}
+        loading="lazy"
+        draggable={false}
+        className={fail ? 'is-fail' : ''}
+        onError={() => setFail(true)}
+        onLoad={() => setFail(false)}
+      />
+    </>
+  )
+}
+
 interface GridProps {
   items: Item[]
   /**
@@ -165,6 +209,8 @@ interface GridProps {
   /** 把当前列数上报给 App，seek 时用来把目标对齐到整行 */
   onCols: (cols: number) => void
   cardSize: number
+  /** 导入/缩略图进度推进时递增，驱动失败缩略图重试 */
+  thumbEpoch: number
 }
 
 function Grid({
@@ -188,6 +234,7 @@ function Grid({
   onCols,
   onPlaces,
   cardSize,
+  thumbEpoch,
 }: GridProps): React.JSX.Element {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [scrollTop, setScrollTop] = useState(0)
@@ -440,16 +487,7 @@ function Grid({
             }}
           >
             <div className="card-img" style={{ height: placeImgH, width: list ? placeImgH : undefined }}>
-              <img
-                src={`aerie-thumb://md/${item.id}`}
-                alt={item.name}
-                loading="lazy"
-                draggable={false}
-                onError={(e) => {
-                  // 缩略图还没生成时显示占位
-                  e.currentTarget.style.display = 'none'
-                }}
-              />
+              <CardThumb itemId={item.id} name={item.name} epoch={thumbEpoch} />
               <span className="card-ext">{item.ext}</span>
               {selected.has(item.id) && <span className="card-check">✓</span>}
               {item.missing && <span className="card-missing">缺失</span>}
@@ -605,6 +643,12 @@ function StarSet({ onStar }: { onStar: (star: number) => void }): React.JSX.Elem
   )
 }
 
+/** 批量操作前确认。少量直接过；多了写清会影响几项。 */
+function confirmBatch(action: string, count: number): boolean {
+  if (count <= 1) return true
+  return window.confirm(`将对已选的 ${count.toLocaleString()} 项执行「${action}」。确定吗？`)
+}
+
 function BatchBar({
   count,
   scope,
@@ -638,14 +682,26 @@ function BatchBar({
   const tagOptions = walkTree(tags, null, 0)
   return (
     <div className="batchbar">
-      <span className="batch-count">已选 {count}</span>
-      <StarSet onStar={onStar} />
+      <span className="batch-count">已选 {count.toLocaleString()}</span>
+      <StarSet
+        onStar={(star) => {
+          if (!confirmBatch(star > 0 ? `评为 ${star} 星` : '清除评分', count)) return
+          onStar(star)
+        }}
+      />
       <select
         value=""
         disabled={folderOptions.length === 0}
         title={folderOptions.length === 0 ? '先在侧栏新建文件夹' : '加入文件夹'}
         onChange={(e) => {
-          if (e.target.value) onFolder(e.target.value)
+          const id = e.target.value
+          if (!id) return
+          const name = folderOptions.find((row) => row.id === id)?.name ?? '文件夹'
+          if (!confirmBatch(`加入「${name}」`, count)) {
+            e.target.value = ''
+            return
+          }
+          onFolder(id)
         }}
       >
         <option value="">{folderOptions.length === 0 ? '没有文件夹' : '加入文件夹'}</option>
@@ -660,7 +716,14 @@ function BatchBar({
         disabled={tagOptions.length === 0}
         title={tagOptions.length === 0 ? '先在侧栏新建标签' : '添加标签'}
         onChange={(e) => {
-          if (e.target.value) onTag(e.target.value)
+          const id = e.target.value
+          if (!id) return
+          const name = tagOptions.find((row) => row.id === id)?.name ?? '标签'
+          if (!confirmBatch(`打上「${name}」`, count)) {
+            e.target.value = ''
+            return
+          }
+          onTag(id)
         }}
       >
         <option value="">{tagOptions.length === 0 ? '没有标签' : '添加标签'}</option>
@@ -670,19 +733,43 @@ function BatchBar({
           </option>
         ))}
       </select>
-      <button className="btn-ghost sm" onClick={onRename}>
+      <button
+        className="btn-ghost sm"
+        onClick={() => {
+          if (!confirmBatch('重命名', count)) return
+          onRename()
+        }}
+      >
         重命名
       </button>
-      <button className="btn-ghost sm" onClick={onExport}>
+      <button
+        className="btn-ghost sm"
+        onClick={() => {
+          if (!confirmBatch('导出', count)) return
+          onExport()
+        }}
+      >
         导出
       </button>
       {onLeave && (
-        <button className="btn-ghost sm" onClick={onLeave}>
+        <button
+          className="btn-ghost sm"
+          onClick={() => {
+            if (!confirmBatch('移出此文件夹', count)) return
+            onLeave()
+          }}
+        >
           移出此文件夹
         </button>
       )}
       {scope === 'trash' && (
-        <button className="btn-ghost sm" onClick={onRestore}>
+        <button
+          className="btn-ghost sm"
+          onClick={() => {
+            if (!confirmBatch('还原', count)) return
+            onRestore()
+          }}
+        >
           还原
         </button>
       )}
@@ -1146,14 +1233,19 @@ function Inspector({
       setDetail(null)
       return
     }
+    // 立刻清掉上一条的标签/文件夹，避免方向键连按时闪旧内容
+    setDetail(null)
     let cancelled = false
-    void window.aerie.items.get(item.id).then((next) => {
-      if (!cancelled) setDetail(next)
-    })
+    const timer = window.setTimeout(() => {
+      void window.aerie.items.get(item.id).then((next) => {
+        if (!cancelled) setDetail(next)
+      })
+    }, 70)
     return () => {
       cancelled = true
+      window.clearTimeout(timer)
     }
-  }, [item?.id, item?.star, item?.name])
+  }, [item?.id])
 
   if (!item) return null
 
@@ -1338,6 +1430,9 @@ function Welcome({
       <div className="welcome-inner">
         <h1>影巢</h1>
         <p className="tagline">本地优先的素材库。文件始终属于你。</p>
+        <p className="welcome-hint">
+          建库之后，可拖入文件、用「导入」，或从剪贴板粘贴素材。
+        </p>
 
           <div className="welcome-choices">
           <button className="choice is-primary" onClick={() => onCreate('reference')}>
@@ -1415,6 +1510,8 @@ function App(): React.JSX.Element {
   const [inspectorId, setInspectorId] = useState<string | null>(null)
   const [cardSize, setCardSize] = useState(168)
   const [layout, setLayout] = useState<BrowseLayout>('grid')
+  /** 导入缩略图推进时 +1，让「生成中」的卡片重新请求 */
+  const [thumbEpoch, setThumbEpoch] = useState(0)
   const placesRef = useRef<CardPlace[] | null>(null)
   const onPlaces = useCallback((places: CardPlace[] | null) => {
     placesRef.current = places
@@ -1777,6 +1874,9 @@ function App(): React.JSX.Element {
 
   useEffect(() => {
     return window.aerie.import.onProgress((p) => {
+      if (p.phase === 'thumbs' || p.phase === 'done') {
+        setThumbEpoch((n) => n + 1)
+      }
       setProgress(p.phase === 'done' ? null : p)
       if (p.phase === 'done') {
         void refreshAll()
@@ -2150,6 +2250,7 @@ function App(): React.JSX.Element {
   const doTrash = useCallback(
     async (ids: string[]): Promise<void> => {
       if (ids.length === 0) return
+      if (!confirmBatch(scope === 'trash' ? '从索引删除' : '移入回收站', ids.length)) return
       if (scope === 'trash') {
         const n = await window.aerie.items.purge(ids)
         flash(`已从索引移除 ${n} 项，原文件还在`)
@@ -2707,7 +2808,17 @@ function App(): React.JSX.Element {
               </button>
               <button
                 className={layout === 'waterfall' ? 'is-on' : ''}
-                onClick={() => setLayout('waterfall')}
+                title={
+                  !complete
+                    ? '当前库较大，瀑布流需全部载入后才能按真实高度排布'
+                    : '瀑布流'
+                }
+                onClick={() => {
+                  setLayout('waterfall')
+                  if (!complete) {
+                    flash('库较大时瀑布流暂用等高网格；素材全部载入后会按真实高度排布')
+                  }
+                }}
               >
                 瀑布
               </button>
@@ -2860,6 +2971,12 @@ function App(): React.JSX.Element {
           />
         )}
 
+        {layout === 'waterfall' && !complete && (
+          <div className="layout-hint" role="status">
+            库较大，瀑布流暂用等高网格；全部载入后会按真实高度排布。
+          </div>
+        )}
+
         {progress && (
           <div className="progress-bar">
             <div className="progress-text">
@@ -2933,6 +3050,7 @@ function App(): React.JSX.Element {
               })()
             }}
             cardSize={cardSize}
+            thumbEpoch={thumbEpoch}
           />
 
           {loading && (
@@ -2960,9 +3078,23 @@ function App(): React.JSX.Element {
                 <button className="btn-primary" onClick={clearNarrowed}>
                   清除筛选
                 </button>
+              ) : !filtered && scope === 'active' && !activeFolder ? (
+                <>
+                  <p className="empty-hint">
+                    把文件拖进来，或用顶部「导入」、从剪贴板粘贴。
+                  </p>
+                  <div className="empty-actions">
+                    <button className="btn-primary" onClick={() => void doImportFolder()}>
+                      导入文件夹
+                    </button>
+                    <button className="btn-ghost" onClick={() => void doImportFiles()}>
+                      导入文件
+                    </button>
+                  </div>
+                </>
               ) : (
                 !filtered && (
-                  <button className="btn-primary" onClick={doImportFolder}>
+                  <button className="btn-primary" onClick={() => void doImportFolder()}>
                     导入一个文件夹
                   </button>
                 )
