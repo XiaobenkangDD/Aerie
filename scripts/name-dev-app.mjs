@@ -11,8 +11,20 @@ const dist = path.resolve('node_modules/electron/dist')
 const legacy = path.join(dist, 'Electron.app')
 const named = path.join(dist, `${NAME}.app`)
 
-if (process.platform !== 'darwin' || (!fs.existsSync(legacy) && !fs.existsSync(named))) {
-  process.exit(0)
+if (process.platform !== 'darwin') process.exit(0)
+
+function executableOf(app) {
+  return path.join(app, 'Contents/MacOS/Electron')
+}
+
+if (!fs.existsSync(executableOf(legacy)) && !fs.existsSync(executableOf(named))) {
+  console.log('Electron 程序包缺失，正在重新下载…')
+  execFileSync(process.execPath, [path.resolve('node_modules/electron/install.js')], { stdio: 'inherit' })
+}
+
+if (!fs.existsSync(legacy) && !fs.existsSync(named)) {
+  console.error('Electron 程序包仍然缺失，无法启动。请在项目目录执行 npm install 后重试。')
+  process.exit(1)
 }
 
 let renamed = false

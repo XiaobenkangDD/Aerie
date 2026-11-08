@@ -1,5 +1,5 @@
 appId: app.aerie.desktop
-productName: Aerie
+productName: 影巢
 copyright: Copyright © 2026 Kang
 directories:
   output: release
@@ -15,6 +15,7 @@ extraResources:
   - from: src/main/analyze/ocr.swift
     to: ocr.swift
 mac:
+  icon: build/icon.icns
   category: public.app-category.graphics-design
   # 没有证书，打出来的是未签名的 .app / dmg。不要开 hardened runtime，否则会要求签名。
   identity: null

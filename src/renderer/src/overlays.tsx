@@ -28,6 +28,16 @@ const STRIP_W = 76
 const STRIP_GAP = 6
 const STRIP_STEP = STRIP_W + STRIP_GAP
 
+/** 相对原图像素。0.1 是缩到一成，8 是放到八倍。 */
+const ZOOM_MIN = 0.1
+const ZOOM_MAX = 8
+const ZOOM_STEP = 1.25
+export const VIEWER_ZOOM_EVENT = 'aerie-viewer-zoom'
+
+function clampZoom(scale: number): number {
+  return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, scale))
+}
+
 type DrawTool = 'view' | 'rect' | 'arrow' | 'text'
 const ANNO_COLOR = '#f5c518'
 
@@ -93,6 +103,7 @@ export function Viewer({
   const [playing, setPlaying] = useState(false)
   const [box, setBox] = useState({ w: 1, h: 1 })
   const frameRef = useRef<HTMLDivElement>(null)
+  const stageRef = useRef<HTMLDivElement>(null)
   const stripRef = useRef<HTMLDivElement>(null)
   const [stripScroll, setStripScroll] = useState(0)
   const [stripWidth, setStripWidth] = useState(0)
@@ -101,9 +112,34 @@ export function Viewer({
   const drawing = useRef<{ id: string; kind: 'rect' | 'arrow'; x: number; y: number } | null>(null)
   const shownId = useRef<string | undefined>(undefined)
   const saveGen = useRef(0)
+  const zoomByRef = useRef<(factor: number) => void>(() => {})
+  const zoomStateRef = useRef({ mode, zoom })
   annosRef.current = annos
   draftRef.current = draft
   shownId.current = item?.id
+  zoomStateRef.current = { mode, zoom }
+
+  zoomByRef.current = (factor: number) => {
+    const current = items[index]
+    if (!current || VIDEO.has(current.ext) || AUDIO.has(current.ext)) return
+    const live = zoomStateRef.current
+    let base = 0
+    if (live.mode === 'zoom') base = live.zoom
+    else if (live.mode === 'actual') base = 1
+    else {
+      const img = frameRef.current?.querySelector('img')
+      if (img && natural.w > 0) {
+        const shown = img.getBoundingClientRect().width
+        if (shown > 1) base = shown / natural.w
+      }
+    }
+    if (base <= 0) return
+    const next = clampZoom(base * factor)
+    // 同一帧里的连续滚轮要叠乘，不能每次都从上次渲染的倍率重算
+    zoomStateRef.current = { mode: 'zoom', zoom: next }
+    setMode('zoom')
+    setZoom(next)
+  }
 
   useEffect(() => {
     setMode('fit')
@@ -167,10 +203,42 @@ export function Viewer({
       }
       if (e.key === '0') setMode('fit')
       if (e.key === '1') setMode('actual')
+      if (e.key === '+' || e.key === '=') {
+        e.preventDefault()
+        zoomByRef.current(ZOOM_STEP)
+      }
+      if (e.key === '-' || e.key === '_') {
+        e.preventDefault()
+        zoomByRef.current(1 / ZOOM_STEP)
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [index, items.length, onClose, onIndex, textDraft])
+
+  useEffect(() => {
+    const onZoom = (e: Event): void => {
+      const detail = (e as CustomEvent<string>).detail
+      if (detail === 'zoom-in') zoomByRef.current(ZOOM_STEP)
+      else if (detail === 'zoom-out') zoomByRef.current(1 / ZOOM_STEP)
+      else if (detail === 'zoom-reset') setMode('fit')
+    }
+    window.addEventListener(VIEWER_ZOOM_EVENT, onZoom)
+    return () => window.removeEventListener(VIEWER_ZOOM_EVENT, onZoom)
+  }, [])
+
+  useEffect(() => {
+    const el = stageRef.current
+    if (!el) return
+    const onWheel = (e: WheelEvent): void => {
+      const current = items[index]
+      if (!current || VIDEO.has(current.ext) || AUDIO.has(current.ext)) return
+      e.preventDefault()
+      zoomByRef.current(e.deltaY < 0 ? 1.12 : 1 / 1.12)
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [index, items])
 
   useEffect(() => {
     const ext = item?.ext
@@ -218,6 +286,10 @@ export function Viewer({
   const fitted = mode === 'fit'
   const scale = mode === 'actual' ? 1 : zoom
   const pixelW = natural.w > 0 ? Math.round(natural.w * scale) : undefined
+  const shownScale =
+    mode === 'zoom' ? zoom : mode === 'actual' ? 1 : natural.w > 1 && box.w > 1 ? box.w / natural.w : 0
+  const zoomable = kind !== 'video' && kind !== 'audio'
+  const zoomLabel = shownScale > 0 ? `${Math.round(shownScale * 100)}%` : '—'
   const shapes = draft ? [...annos, draft] : annos
 
   const persist = (next: Annotation[]): void => {
@@ -258,11 +330,30 @@ export function Viewer({
           {playing ? '暂停' : '播放'}
         </button>
         <div className="seg" role="group" aria-label="缩放">
-          <button className={fitted ? 'is-on' : ''} title="0" onClick={() => setMode('fit')}>
+          <button
+            className="viewer-zoom-step"
+            aria-label="缩小"
+            title="缩小（−）"
+            disabled={!zoomable || shownScale <= 0 || shownScale <= ZOOM_MIN + 0.001}
+            onClick={() => zoomByRef.current(1 / ZOOM_STEP)}
+          >
+            −
+          </button>
+          <button className={fitted ? 'is-on' : ''} title="适应窗口（0）" onClick={() => setMode('fit')}>
             适应
           </button>
-          <button className={mode === 'actual' ? 'is-on' : ''} title="1" onClick={() => setMode('actual')}>
-            实际大小
+          <span className="viewer-zoom-pct">{zoomable ? zoomLabel : '—'}</span>
+          <button className={mode === 'actual' ? 'is-on' : ''} title="实际大小（1）" onClick={() => setMode('actual')}>
+            100%
+          </button>
+          <button
+            className="viewer-zoom-step"
+            aria-label="放大"
+            title="放大（+）"
+            disabled={!zoomable || shownScale <= 0 || shownScale >= ZOOM_MAX - 0.001}
+            onClick={() => zoomByRef.current(ZOOM_STEP)}
+          >
+            +
           </button>
         </div>
         {kind === 'image' && (
@@ -324,17 +415,7 @@ export function Viewer({
             <path d="M9.5 5.5 16 12l-6.5 6.5" />
           </svg>
         </button>
-      <div
-        className="viewer-stage"
-        onClick={(e) => e.stopPropagation()}
-        onWheel={(e) => {
-          if (kind === 'video' || kind === 'audio') return
-          e.preventDefault()
-          const next = Math.min(8, Math.max(0.2, (mode === 'zoom' ? zoom : 1) * (e.deltaY < 0 ? 1.12 : 0.9)))
-          setMode('zoom')
-          setZoom(next)
-        }}
-      >
+      <div className="viewer-stage" ref={stageRef} onClick={(e) => e.stopPropagation()}>
         {kind === 'video' ? (
           <video key={item.id} src={src} controls autoPlay />
         ) : kind === 'audio' ? (
@@ -354,6 +435,12 @@ export function Viewer({
               alt={item.name}
               draggable={false}
               onLoad={(e) => setNatural({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })}
+              onDoubleClick={(e) => {
+                if (tool !== 'view') return
+                e.preventDefault()
+                e.stopPropagation()
+                setMode((prev) => (prev === 'fit' ? 'actual' : 'fit'))
+              }}
             />
             {kind === 'image' && (
               <div

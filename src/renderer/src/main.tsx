@@ -27,7 +27,16 @@ import type {
 } from '../../shared/types'
 import { HUES } from '../../shared/image'
 import { describeRules, normalizeRules, rulesToQuery } from '../../shared/smart'
-import { ConnectDialog, Menu, RenameDialog, SideMenu, SimilarDialog, SmartFolderDialog, Viewer } from './overlays'
+import {
+  ConnectDialog,
+  Menu,
+  RenameDialog,
+  SideMenu,
+  SimilarDialog,
+  SmartFolderDialog,
+  VIEWER_ZOOM_EVENT,
+  Viewer,
+} from './overlays'
 
 // ────────────────────────────────────────────────────────────
 // 小工具
@@ -2360,16 +2369,14 @@ function App(): React.JSX.Element {
         setLayout(command.slice('layout-'.length) as BrowseLayout)
         return
       }
-      if (command === 'zoom-in') {
-        setCardSize((size) => Math.min(280, size + 16))
-        return
-      }
-      if (command === 'zoom-out') {
-        setCardSize((size) => Math.max(100, size - 16))
-        return
-      }
-      if (command === 'zoom-reset') {
-        setCardSize(168)
+      if (command === 'zoom-in' || command === 'zoom-out' || command === 'zoom-reset') {
+        if (viewerIndex != null) {
+          window.dispatchEvent(new CustomEvent(VIEWER_ZOOM_EVENT, { detail: command }))
+          return
+        }
+        if (command === 'zoom-in') setCardSize((size) => Math.min(280, size + 16))
+        else if (command === 'zoom-out') setCardSize((size) => Math.max(100, size - 16))
+        else setCardSize(168)
         return
       }
       if (command === 'find-similar') {

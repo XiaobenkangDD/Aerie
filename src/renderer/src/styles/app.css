@@ -1394,8 +1394,30 @@ html.is-fullscreen .viewer-top {
   min-height: 0;
   display: grid;
   place-items: center;
+  place-items: safe center;
   overflow: auto;
   padding: 12px 84px 28px;
+}
+
+.seg button.viewer-zoom-step {
+  min-width: 28px;
+  padding-left: 0;
+  padding-right: 0;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.seg button.viewer-zoom-step:disabled {
+  opacity: 0.35;
+}
+
+.viewer-zoom-pct {
+  min-width: 46px;
+  padding: 3px 2px;
+  text-align: center;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-0);
 }
 
 .viewer-stage img,
