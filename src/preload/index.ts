@@ -32,6 +32,7 @@ const api: AerieApi = {
   items: {
     seek: (opts: QueryOptions, row: number) => ipcRenderer.invoke(IPC.itemsSeek, opts, row),
     query: (opts: QueryOptions) => ipcRenderer.invoke(IPC.itemsQuery, opts),
+    queryIds: (opts: QueryOptions) => ipcRenderer.invoke(IPC.itemsQueryIds, opts),
     get: (id) => ipcRenderer.invoke(IPC.itemsGet, id),
     update: (id, patch: Partial<Pick<Item, 'name' | 'annotation' | 'star' | 'url'>>) =>
       ipcRenderer.invoke(IPC.itemsUpdate, id, patch),

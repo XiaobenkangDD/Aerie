@@ -84,15 +84,26 @@ function ArrowShape({ a, box }: { a: Annotation; box: { w: number; h: number } }
 export function Viewer({
   items,
   index,
-  onIndex,
+  absIndex,
+  totalCount,
+  onAbsIndex,
   onClose,
 }: {
   items: Item[]
+  /** 当前窗口内的下标，用来取 items[index] 和底栏缩略图 */
   index: number
-  onIndex: (index: number) => void
+  /** 在整个筛选结果里的绝对下标 */
+  absIndex: number
+  totalCount: number
+  onAbsIndex: (abs: number) => void
   onClose: () => void
 }): JSX.Element | null {
   const item = items[index]
+  const goLocal = (local: number): void => {
+    const next = items[local]
+    if (!next) return
+    onAbsIndex(absIndex - index + local)
+  }
   const [mode, setMode] = useState<'fit' | 'actual' | 'zoom'>('fit')
   const [zoom, setZoom] = useState(1)
   const [natural, setNatural] = useState({ w: 0, h: 0 })
@@ -188,13 +199,13 @@ export function Viewer({
         onClose()
         return
       }
-      if (e.key === 'ArrowLeft' && index > 0) {
+      if (e.key === 'ArrowLeft' && absIndex > 0) {
         e.preventDefault()
-        onIndex(index - 1)
+        onAbsIndex(absIndex - 1)
       }
-      if (e.key === 'ArrowRight' && index < items.length - 1) {
+      if (e.key === 'ArrowRight' && absIndex < totalCount - 1) {
         e.preventDefault()
-        onIndex(index + 1)
+        onAbsIndex(absIndex + 1)
       }
       if (e.key === ' ') {
         e.preventDefault()
@@ -214,7 +225,7 @@ export function Viewer({
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [index, items.length, onClose, onIndex, textDraft])
+  }, [absIndex, totalCount, onClose, onAbsIndex, textDraft])
 
   useEffect(() => {
     const onZoom = (e: Event): void => {
@@ -249,10 +260,10 @@ export function Viewer({
       (ext != null && (VIDEO.has(ext) || AUDIO.has(ext)))
     if (blocked) return
     const timer = window.setInterval(() => {
-      onIndex(index >= items.length - 1 ? 0 : index + 1)
+      onAbsIndex(absIndex >= totalCount - 1 ? 0 : absIndex + 1)
     }, 3000)
     return () => window.clearInterval(timer)
-  }, [playing, tool, textDraft, item?.ext, index, items.length, onIndex])
+  }, [playing, tool, textDraft, item?.ext, absIndex, totalCount, onAbsIndex])
 
   useLayoutEffect(() => {
     const el = stripRef.current
@@ -320,7 +331,7 @@ export function Viewer({
           </span>
         </div>
         <span className="viewer-index">
-          {index + 1} / {items.length}
+          {absIndex + 1} / {totalCount}
         </span>
         <button
           className={`btn-ghost sm ${playing ? 'is-on' : ''}`}
@@ -391,10 +402,10 @@ export function Viewer({
           type="button"
           className="viewer-nav is-prev"
           aria-label="上一张"
-          disabled={index === 0}
+          disabled={absIndex === 0}
           onClick={(e) => {
             e.stopPropagation()
-            onIndex(Math.max(0, index - 1))
+            onAbsIndex(Math.max(0, absIndex - 1))
           }}
         >
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -405,10 +416,10 @@ export function Viewer({
           type="button"
           className="viewer-nav is-next"
           aria-label="下一张"
-          disabled={index >= items.length - 1}
+          disabled={absIndex >= totalCount - 1}
           onClick={(e) => {
             e.stopPropagation()
-            onIndex(Math.min(items.length - 1, index + 1))
+            onAbsIndex(Math.min(totalCount - 1, absIndex + 1))
           }}
         >
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -585,7 +596,7 @@ export function Viewer({
                 className={`viewer-thumb ${thumbIndex === index ? 'is-on' : ''}`}
                 style={{ transform: `translateX(${thumbIndex * STRIP_STEP}px)` }}
                 title={thumb.name}
-                onClick={() => onIndex(thumbIndex)}
+                onClick={() => goLocal(thumbIndex)}
               >
                 <img src={`aerie-thumb://sm/${thumb.id}`} alt="" draggable={false} />
               </button>

@@ -401,6 +401,8 @@ export const IPC = {
 
   // 查询
   itemsQuery: 'items:query',
+  /** 只取 id，给大库「全选符合条件的全部」用 */
+  itemsQueryIds: 'items:query-ids',
   itemsSeek: 'items:seek',
   itemsGet: 'items:get',
   itemsUpdate: 'items:update',
@@ -561,6 +563,8 @@ export interface AerieApi {
     /** 按行号定位（滚动条拖拽），返回该位置前一行的游标 */
     seek: (opts: QueryOptions, row: number) => Promise<Cursor | null>
     query(opts: QueryOptions): Promise<QueryResult>
+    /** 当前筛选下全部 id（上限 50 万） */
+    queryIds(opts: QueryOptions): Promise<string[]>
     get(id: string): Promise<ItemDetail | null>
     update(id: string, patch: Partial<Pick<Item, 'name' | 'annotation' | 'star' | 'url'>>): Promise<void>
     updateMany(ids: string[], patch: Partial<Pick<Item, 'star'>>): Promise<void>

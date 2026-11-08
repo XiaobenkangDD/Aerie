@@ -133,61 +133,70 @@ export function startOcrBackfill(db: DB): void {
       return
     }
 
-    let pending: { id: string; filePath: string; ext: string }[]
-    try {
-      pending = db
-        .prepare(
-          `SELECT id, file_path AS filePath, ext FROM items
-           WHERE ocr_text IS NULL AND deleted_at IS NULL`,
-        )
-        .all() as { id: string; filePath: string; ext: string }[]
-    } catch {
-      return
-    }
+    const keys = extList.map(() => '?').join(', ')
+    const pick = db.prepare(
+      `SELECT id, file_path AS filePath FROM items
+       WHERE ocr_text IS NULL AND deleted_at IS NULL AND ext IN (${keys})
+       ORDER BY added_at DESC
+       LIMIT 40`,
+    )
 
-    const targets = pending.filter((row) => OCR_EXTS.has(row.ext))
     let visionFails = 0
-    for (const row of targets) {
+    for (;;) {
       if (!alive()) return
-      if (!fs.existsSync(row.filePath)) {
-        try {
-          setOcrText(db, row.id, '')
-        } catch {
-          return
-        }
-        continue
-      }
-
-      const result = await runSwift(script, row.filePath)
-      if (!alive()) return
-
-      if (isEnvironmentFailure(result.code, result.stderr)) {
-        const detail = result.stderr.replace(/\s+/g, ' ').slice(0, 160)
-        blockedReason = detail
-          ? `画面文字识别不可用：${detail}`
-          : '没有找到 swift，画面文字识别已跳过。装好 Xcode 命令行工具后重开库即可。'
-        return
-      }
-
+      let batch: { id: string; filePath: string }[]
       try {
-        // 非 0 是这张图读不了或 Vision 拒了这一张。记空串，避免每次开库都重试。
-        setOcrText(db, row.id, result.code === 0 ? result.stdout : '')
+        batch = pick.all(...extList) as { id: string; filePath: string }[]
       } catch {
         return
       }
+      if (batch.length === 0) return
 
-      if (result.code === 1) {
-        visionFails++
-        // 连续多张都是 Vision 报错，多半是系统能力不可用，停下来告诉用户
-        if (visionFails >= 3) {
+      for (const row of batch) {
+        if (!alive()) return
+        if (!fs.existsSync(row.filePath)) {
+          try {
+            setOcrText(db, row.id, '')
+          } catch {
+            return
+          }
+          continue
+        }
+
+        const result = await runSwift(script, row.filePath)
+        if (!alive()) return
+
+        if (isEnvironmentFailure(result.code, result.stderr)) {
           const detail = result.stderr.replace(/\s+/g, ' ').slice(0, 160)
           blockedReason = detail
             ? `画面文字识别不可用：${detail}`
-            : '画面文字识别连续失败，已跳过。'
+            : '没有找到 swift，画面文字识别已跳过。装好 Xcode 命令行工具后重开库即可。'
           return
         }
-      } else {
-        visionFails = 0
+
+        try {
+          // 非 0 是这张图读不了或 Vision 拒了这一张。记空串，避免每次开库都重试。
+          setOcrText(db, row.id, result.code === 0 ? result.stdout : '')
+        } catch {
+          return
+        }
+
+        if (result.code === 1) {
+          visionFails++
+          // 连续多张都是 Vision 报错，多半是系统能力不可用，停下来告诉用户
+          if (visionFails >= 3) {
+            const detail = result.stderr.replace(/\s+/g, ' ').slice(0, 160)
+            blockedReason = detail
+              ? `画面文字识别不可用：${detail}`
+              : '画面文字识别连续失败，已跳过。'
+            return
+          }
+        } else {
+          visionFails = 0
+        }
+
+        // 每张之间让出主进程，缩略图 IPC 还能插进来
+        await new Promise<void>((resolve) => setImmediate(resolve))
       }
     }
   })().catch(() => undefined)

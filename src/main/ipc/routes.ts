@@ -36,6 +36,7 @@ import {
   listFolders,
   listTags,
   queryItems,
+  queryItemIds,
   seekToRow,
 } from '../library/query.js'
 import {
@@ -124,6 +125,10 @@ export function registerIpc(): void {
 
   ipcMain.handle(IPC.itemsQuery, (_e, opts: QueryOptions) =>
     withDb((db) => queryItems(db, opts)),
+  )
+
+  ipcMain.handle(IPC.itemsQueryIds, (_e, opts: QueryOptions) =>
+    withDb((db) => queryItemIds(db, opts)),
   )
 
   ipcMain.handle(IPC.itemsGet, (_e, id: string) => withDb((db) => getItemDetail(db, id)))
@@ -217,7 +222,7 @@ export function registerIpc(): void {
     withDb((db) => setAnnotations(db, id, annotations)),
   )
 
-  ipcMain.handle(IPC.itemsPresence, () => withDb((db) => refreshPresence(db)))
+  ipcMain.handle(IPC.itemsPresence, () => withDb((db) => refreshPresence(db))) // async，分块让出主进程
 
   ipcMain.handle(IPC.itemsRelink, (_e, id: string, filePath: string) =>
     withDb((db) => {

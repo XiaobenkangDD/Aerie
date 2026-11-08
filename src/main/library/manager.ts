@@ -152,12 +152,8 @@ export function openLibrary(root: string): Library {
   recent.unshift({ path: resolved, name: info.name, openedAt: Date.now() })
   writeRecent(recent.slice(0, 12))
 
-  // 引用模式下原文件可能已经被挪走。几百张的 exists 检查不挡开库。
-  try {
-    refreshPresence(db)
-  } catch {
-    /* 检查失败不影响开库 */
-  }
+  // 引用模式下原文件可能已经被挪走。分块异步检查，不挡开库。
+  void refreshPresence(db).catch(() => undefined)
 
   // 给升级前导入的图补指纹和拍摄时间。失败不影响开库。
   startBackfill(db)
