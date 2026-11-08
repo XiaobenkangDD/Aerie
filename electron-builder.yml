@@ -1,0 +1,29 @@
+appId: app.aerie.desktop
+productName: Aerie
+copyright: Copyright © 2026 Kang
+directories:
+  output: release
+files:
+  - out/**/*
+  - package.json
+# 原生模块不能进 asar，否则 better-sqlite3 / sharp 在打包后加载不到
+asarUnpack:
+  - "**/*.node"
+  - "**/node_modules/sharp/**"
+  - "**/node_modules/@img/**"
+extraResources:
+  - from: src/main/analyze/ocr.swift
+    to: ocr.swift
+mac:
+  category: public.app-category.graphics-design
+  # 没有证书，打出来的是未签名的 .app / dmg。不要开 hardened runtime，否则会要求签名。
+  identity: null
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  notarize: false
+  target:
+    - dir
+    - dmg
+dmg:
+  sign: false
+  writeUpdateInfo: false

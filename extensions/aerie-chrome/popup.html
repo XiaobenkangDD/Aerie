@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>影巢</title>
+    <style>
+      body {
+        font: 13px/1.45 -apple-system, sans-serif;
+        width: 280px;
+        margin: 12px;
+        color: #1c1c1e;
+      }
+      label {
+        display: block;
+        margin-bottom: 10px;
+      }
+      input {
+        width: 100%;
+        box-sizing: border-box;
+        margin-top: 4px;
+        padding: 6px 8px;
+      }
+      button {
+        padding: 6px 12px;
+      }
+      p {
+        color: #666;
+        margin: 10px 0 0;
+      }
+    </style>
+  </head>
+  <body>
+    <label>
+      端口
+      <input id="port" inputmode="numeric" placeholder="47321" />
+    </label>
+    <label>
+      Token
+      <input id="token" placeholder="从影巢设置里复制" />
+    </label>
+    <button id="save" type="button">保存</button>
+    <p id="hint">在图片上右键，选「收藏到影巢」。</p>
+    <script src="popup.js"></script>
+  </body>
+</html>

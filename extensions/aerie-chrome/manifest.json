@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "收藏到影巢",
+  "version": "0.1.0",
+  "description": "把网页上的图片收藏进本机的影巢素材库",
+  "permissions": ["contextMenus", "storage"],
+  "host_permissions": ["http://127.0.0.1/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "影巢",
+    "default_popup": "popup.html"
+  }
+}

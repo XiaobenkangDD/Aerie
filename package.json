@@ -1,0 +1,86 @@
+{
+  "name": "aerie",
+  "version": "0.1.0",
+  "description": "A local-first image and asset library. Your files stay yours.",
+  "main": "./out/main/index.js",
+  "author": "Kang",
+  "license": "SEE LICENSE IN LICENSE",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/name-dev-app.mjs && electron-vite dev",
+    "build": "electron-vite build",
+    "start": "electron-vite preview",
+    "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
+    "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
+    "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "rebuild": "electron-rebuild -f -w better-sqlite3",
+    "postinstall": "electron-rebuild -f -w better-sqlite3 && node scripts/name-dev-app.mjs",
+    "verify": "esbuild test/verify.ts --bundle --platform=node --format=esm --target=node22 --external:better-sqlite3 --external:sharp --outfile=out/test/verify.mjs && ELECTRON_RUN_AS_NODE=1 electron out/test/verify.mjs",
+    "verify:dev": "ELECTRON_RUN_AS_NODE=1 electron out/test/verify.mjs",
+    "test:lru": "esbuild test/lru.ts --bundle --platform=node --format=esm --target=node22 --external:sharp --outfile=out/test/lru.mjs && ELECTRON_RUN_AS_NODE=1 electron out/test/lru.mjs",
+    "test:features": "esbuild test/features.ts --bundle --platform=node --format=esm --target=node22 --external:better-sqlite3 --external:sharp --outfile=out/test/features.mjs && ELECTRON_RUN_AS_NODE=1 electron out/test/features.mjs",
+    "verify:all": "npm run typecheck && npm run test:features && npm run verify && npm run test:lru",
+    "dist": "npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --dir",
+    "dist:mac": "npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dir",
+    "dist:dmg": "npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.7.0",
+    "sharp": "^0.33.5"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^3.7.0",
+    "@tanstack/react-virtual": "^3.11.2",
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^35.0.0",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^3.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.5"
+  },
+  "build": {
+    "appId": "app.aerie.desktop",
+    "productName": "影巢",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "src/main/analyze/ocr.swift",
+        "to": "ocr.swift"
+      }
+    ],
+    "asarUnpack": [
+      "**/*.node",
+      "**/node_modules/sharp/**",
+      "**/node_modules/@img/**"
+    ],
+    "mac": {
+      "icon": "build/icon.icns",
+      "category": "public.app-category.graphics-design",
+      "identity": null,
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "target": [
+        "dir",
+        "dmg"
+      ]
+    },
+    "dmg": {
+      "sign": false,
+      "writeUpdateInfo": false
+    }
+  }
+}

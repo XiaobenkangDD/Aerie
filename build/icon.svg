@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="140" y1="0" x2="900" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1c5650"/>
+      <stop offset="1" stop-color="#0b211f"/>
+    </linearGradient>
+    <linearGradient id="egg" x1="460" y1="430" x2="580" y2="680" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#d7f7f3"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="230" fill="url(#bg)"/>
+  <circle cx="512" cy="512" r="286" fill="none" stroke="#176e68" stroke-width="54"/>
+  <circle cx="512" cy="512" r="206" fill="none" stroke="#4ecdc4" stroke-width="42"/>
+  <circle cx="512" cy="512" r="128" fill="none" stroke="#bffff8" stroke-width="26"/>
+  <ellipse cx="512" cy="518" rx="62" ry="78" fill="url(#egg)"/>
+  <ellipse cx="488" cy="488" rx="14" ry="18" fill="#ffffff" opacity="0.9"/>
+</svg>

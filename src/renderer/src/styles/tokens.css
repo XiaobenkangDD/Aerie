@@ -1,0 +1,133 @@
+/* Aerie 设计令牌
+ *
+ * 深色为主。理由：素材管理工具的使用场景是「看图片」，
+ * 深色背景能让图片本身更突出，眼睛也更省力。
+ */
+
+:root {
+  /* 表面层级：越往上越亮 */
+  --bg-0: #0e0e10;
+  --bg-1: #141416;
+  --bg-2: #1a1a1d;
+  --bg-3: #202024;
+  --bg-hover: #26262b;
+  --bg-active: #2e2e34;
+
+  /* 文字 */
+  --fg-0: #f2f2f5;
+  --fg-1: #a8a8b3;
+  --fg-2: #6e6e7a;
+
+  /* 边框 */
+  --border: #26262b;
+  --border-strong: #34343c;
+
+  /* 强调色：偏冷的青，和图片内容不抢眼 */
+  --accent: #4ecdc4;
+  --accent-dim: #2a7a74;
+  --accent-bg: rgba(78, 205, 196, 0.12);
+
+  /* 状态 */
+  --danger: #e5484d;
+  --warning: #f5a623;
+  --star: #f5c518;
+
+  /* 尺寸 */
+  --sidebar-w: 232px;
+  --inspector-w: 300px;
+  --toolbar-h: 52px;
+  --radius: 8px;
+  --radius-sm: 5px;
+
+  /* 阴影 */
+  --shadow-1: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-2: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --shadow-3: 0 12px 40px rgba(0, 0, 0, 0.55);
+
+  /* 字体 */
+  --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue',
+    'PingFang SC', 'Hiragino Sans GB', sans-serif;
+  --font-mono: 'SF Mono', 'JetBrains Mono', Menlo, monospace;
+
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--fg-0);
+  background: var(--bg-1);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  user-select: none;
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+input,
+textarea {
+  font-family: inherit;
+  font-size: inherit;
+  color: var(--fg-0);
+  background: var(--bg-0);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 9px;
+  outline: none;
+  transition: border-color 0.12s;
+  user-select: text;
+}
+
+input:focus,
+textarea:focus {
+  border-color: var(--accent-dim);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #33333a;
+  border-radius: 5px;
+  border: 2px solid var(--bg-1);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #45454f;
+}
+
+/* 拖拽区域（macOS 隐藏标题栏后需要手动留出） */
+.drag-region {
+  -webkit-app-region: drag;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+}
