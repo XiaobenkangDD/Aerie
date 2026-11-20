@@ -11,7 +11,7 @@ import { SCHEMA_SQL } from './schema.js'
 export type DB = Database.Database
 
 /** 当前 schema 版本。每次改表结构就 +1，并在 migrate() 里加一段升级逻辑。 */
-export const SCHEMA_VERSION = 6
+export const SCHEMA_VERSION = 7
 
 export function openDatabase(file: string): DB {
   const db = new Database(file)
@@ -122,6 +122,20 @@ function ensureV6(db: DB): void {
   }
 }
 
+/**
+ * v7：拍摄时间游标索引 + 文件夹内排序覆盖索引。
+ *
+ * taken_at 排序键是 IFNULL(taken_at, 0)，必须建表达式索引才能覆盖 seek。
+ * item_folders(folder_id, sort_index) 让「文件夹封面 / 手动排序」少回表。
+ */
+function ensureV7(db: DB): void {
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_items_cursor_taken ON items(IFNULL(taken_at, 0), id);
+    CREATE INDEX IF NOT EXISTS idx_items_live_taken ON items(IFNULL(taken_at, 0), id) WHERE deleted_at IS NULL;
+    CREATE INDEX IF NOT EXISTS idx_item_folders_folder_sort ON item_folders(folder_id, sort_index);
+  `)
+}
+
 function migrate(db: DB): void {
   db.exec(SCHEMA_SQL)
   ensureV2(db)
@@ -129,6 +143,7 @@ function migrate(db: DB): void {
   ensureV4(db)
   ensureV5(db)
   ensureV6(db)
+  ensureV7(db)
 
   const row = db.prepare(`SELECT value FROM meta WHERE key = 'schema_version'`).get() as
     | { value: string }

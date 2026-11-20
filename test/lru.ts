@@ -144,6 +144,8 @@ async function main(): Promise<void> {
     const cache = new ThumbCache(root, 1_000_000)
     const before = fs.statSync(oldFile).atimeMs
     cache.touch(oldFile)
+    // touch 把 utimes 推到下一轮事件循环，等它落到磁盘再断言
+    await new Promise<void>((resolve) => setImmediate(resolve))
     const after = fs.statSync(oldFile).atimeMs
     ok('atime 变新了', after > before, `${Math.round((after - before) / 1000)}s`)
     ok('确实接近现在', Math.abs(after - Date.now()) < 5000)

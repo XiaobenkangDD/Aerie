@@ -49,7 +49,7 @@ export async function describeRaster(
           ? base
               .clone()
               .resize(opts.thumbPx, opts.thumbPx, { fit: 'inside', withoutEnlargement: true })
-              .webp({ quality: 82, effort: 4 })
+              .webp({ quality: 82, effort: 2 })
               .toFile(opts.thumbPath)
               .then(() => {
                 thumbWritten = fs.existsSync(opts.thumbPath!) && fs.statSync(opts.thumbPath!).size > 0

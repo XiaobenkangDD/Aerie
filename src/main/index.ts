@@ -80,22 +80,20 @@ function registerThumbProtocol(): void {
 
       if (!file) return new Response('bad request', { status: 400 })
 
-      // 缓存未命中就按需重建：可能是刚导入还没生成，也可能刚被 LRU 淘汰。
-      // 没有这一步，淘汰就等于把缩略图永久弄坏了。
-      if (!fs.existsSync(file)) {
-        const rebuilt = await ensureThumbForItem(
-          getDb(),
-          getThumbsDir(),
-          itemId,
-          size as ThumbSize,
-        )
-        if (!rebuilt) return new Response('not found', { status: 404 })
-      }
+      // 命中直接返回，未命中按需重建（导入未完成或 LRU 淘汰后）。
+      // ensureThumbForItem 内部只做一次 stat，这里不再先 existsSync。
+      const ready = await ensureThumbForItem(
+        getDb(),
+        getThumbsDir(),
+        itemId,
+        size as ThumbSize,
+      )
+      if (!ready) return new Response('not found', { status: 404 })
 
       // 记录访问时间，供 LRU 淘汰排序。失败不影响加载。
-      getThumbCache()?.touch(file)
+      getThumbCache()?.touch(ready)
 
-      const res = await net.fetch(`file://${file}`)
+      const res = await net.fetch(`file://${ready}`)
       // 补上 CORS 头：net.fetch(file://) 返回的响应没有这些头，
       // 渲染进程里 fetch() 会因跨源被判失败（<img> 不受影响）。
       return new Response(res.body, {

@@ -10,7 +10,7 @@
  * 所以协议处理器在缓存未命中时要能反向查到原文件并重新生成。
  * 这一层负责：查库、去重并发、调管线、记账。
  */
-import fs from 'node:fs'
+import fsp from 'node:fs/promises'
 import type { DB } from '../db/index.js'
 import type { ThumbSize } from '../../shared/types.js'
 import { ensureThumb, thumbQueue } from './pipeline.js'
@@ -59,13 +59,12 @@ export async function ensureThumbForItem(
 ): Promise<string | null> {
   const file = `${thumbsDir}/${size}/${itemId}.webp`
 
-  // 命中缓存：直接返回（顺便由调用方 touch）
-  if (fs.existsSync(file)) {
-    try {
-      if (fs.statSync(file).size > 0) return file
-    } catch {
-      // 落到下面重建
-    }
+  // 命中缓存：一次异步 stat 即可（协议层不再先 existsSync）
+  try {
+    const st = await fsp.stat(file)
+    if (st.size > 0) return file
+  } catch {
+    // 落到下面重建
   }
 
   const key = `${size}:${itemId}`
