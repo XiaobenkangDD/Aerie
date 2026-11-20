@@ -7,7 +7,7 @@ function installMenu() {
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({
       id: MENU_ID,
-      title: '收藏到影巢',
+      title: '收藏到图匣',
       contexts: ['image'],
     })
   })
@@ -20,7 +20,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId !== MENU_ID || !info.srcUrl) return
   const stored = await chrome.storage.local.get({ token: '', port: 47321 })
   if (!stored.token) {
-    await chrome.storage.local.set({ lastResult: '先在扩展弹窗里填上影巢的 token' })
+    await chrome.storage.local.set({ lastResult: '先在扩展弹窗里填上图匣的 token' })
     return
   }
   const port = Number(stored.port) || 47321
@@ -38,9 +38,9 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       }),
     })
     const body = await response.json().catch(() => ({}))
-    const message = response.ok ? '已收藏到影巢' : body.error || `收藏失败（${response.status}）`
+    const message = response.ok ? '已收藏到图匣' : body.error || `收藏失败（${response.status}）`
     await chrome.storage.local.set({ lastResult: message })
   } catch {
-    await chrome.storage.local.set({ lastResult: '连不上影巢。确认库已打开，并且端口、token 没填错。' })
+    await chrome.storage.local.set({ lastResult: '连不上图匣。确认库已打开，并且端口、token 没填错。' })
   }
 })

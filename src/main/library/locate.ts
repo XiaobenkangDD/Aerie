@@ -37,7 +37,7 @@ export function resolveLibraryRoot(input: string): string {
   }
 
   throw new Error(
-    `「${path.basename(resolved)}」不是影巢库。库是以 ${LIBRARY_EXT} 结尾的文件夹。照片目录要先新建库，再用「导入文件夹」加进来。`,
+    `「${path.basename(resolved)}」不是图匣库。库是以 ${LIBRARY_EXT} 结尾的文件夹。照片目录要先新建库，再用「导入文件夹」加进来。`,
   )
 }
 

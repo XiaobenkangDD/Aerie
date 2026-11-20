@@ -75,21 +75,21 @@ export function syncAppMenu(libraryOpen: boolean, currentPath: string | null = n
 
   const template: MenuItemConstructorOptions[] = [
     {
-      label: '影巢',
+      label: '图匣',
       submenu: [
-        { label: '关于影巢', click: () => app.showAboutPanel() },
+        { label: '关于图匣', click: () => app.showAboutPanel() },
         { type: 'separator' },
         ...(process.platform === 'darwin'
           ? ([
               { role: 'services', label: '服务' },
               { type: 'separator' },
-              { role: 'hide', label: '隐藏影巢' },
+              { role: 'hide', label: '隐藏图匣' },
               { role: 'hideOthers', label: '隐藏其他' },
               { role: 'unhide', label: '显示全部' },
               { type: 'separator' },
             ] satisfies MenuItemConstructorOptions[])
           : []),
-        { role: 'quit', label: '退出影巢' },
+        { role: 'quit', label: '退出图匣' },
       ],
     },
     {

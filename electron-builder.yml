@@ -1,5 +1,5 @@
 appId: app.aerie.desktop
-productName: 影巢
+productName: 图匣
 copyright: Copyright © 2026 Kang
 directories:
   output: release

@@ -166,7 +166,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   const header = req.headers.authorization ?? ''
   const token = header.startsWith('Bearer ') ? header.slice('Bearer '.length).trim() : ''
   if (!tokenOk(token, readToken(options.db))) {
-    send(res, 401, { ok: false, error: 'token 不对。请从影巢设置里重新复制。' })
+    send(res, 401, { ok: false, error: 'token 不对。请从图匣设置里重新复制。' })
     return
   }
 

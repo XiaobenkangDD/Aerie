@@ -146,7 +146,7 @@ function migrate(db: DB): void {
 
   if (current > SCHEMA_VERSION) {
     throw new Error(
-      `库版本 ${current} 高于当前程序支持的 ${SCHEMA_VERSION}，请升级影巢后再打开。`,
+      `库版本 ${current} 高于当前程序支持的 ${SCHEMA_VERSION}，请升级图匣后再打开。`,
     )
   }
 

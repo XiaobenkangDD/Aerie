@@ -47,7 +47,7 @@
   },
   "build": {
     "appId": "app.aerie.desktop",
-    "productName": "影巢",
+    "productName": "图匣",
     "asar": true,
     "directories": {
       "output": "release"

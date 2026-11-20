@@ -1,8 +1,8 @@
-# 影巢 Yingchao (Aerie)
+# 图匣 Tuxia (Aerie)
 
-本地优先的桌面图片与素材库。原文件留在原来的文件夹里，影巢只建索引。显示名是「影巢」，仓库和包名是 `aerie`，库文件夹后缀是 `.aerie`。
+本地优先的桌面图片与素材库。原文件留在原来的文件夹里，图匣只建索引。显示名是「图匣」，仓库和包名是 `aerie`，库文件夹后缀是 `.aerie`。
 
-A local-first desktop image and asset library. Original files stay in their folders; Yingchao only keeps an index. The display name is 影巢. The repository and package name are `aerie`. A library folder ends with `.aerie`.
+A local-first desktop image and asset library. Original files stay in their folders; Tuxia only keeps an index. The display name is 图匣. The repository and package name are `aerie`. A library folder ends with `.aerie`.
 
 当前安装包只打 macOS。窗口、资料库、索引，以及 JPG、PNG、WebP 这类常见图片不依赖系统。设计稿、PDF、视频、字体的预览走 macOS QuickLook，画面文字识别走 macOS Vision，其它系统上这两块会跳过。
 
@@ -70,9 +70,9 @@ npm run dist         # 未签名的 macOS 目录包，输出在 release/ / unsig
 
 Renderer edits in `src/renderer` reload on save. After changing `src/main`, `src/preload`, or a native module, stop the app and run `npm run dev` again. Hot reload does not pick up the main process.
 
-`scripts/name-dev-app.mjs` 只在 macOS 上跑。它把开发用的 `Electron.app` 改名为 `影巢.app`，让程序坞显示「影巢」。这个改动在 `node_modules` 里，不要提交。
+`scripts/name-dev-app.mjs` 只在 macOS 上跑。它把开发用的 `Electron.app` 改名为 `图匣 Dev.app`，避免和安装版「图匣」在启动台里重名。这个改动在 `node_modules` 里，不要提交。
 
-`scripts/name-dev-app.mjs` runs only on macOS. It renames the development `Electron.app` to `影巢.app` so the Dock shows 影巢. That change stays in `node_modules`. Do not commit it.
+`scripts/name-dev-app.mjs` runs only on macOS. It renames the development `Electron.app` to `图匣 Dev.app`, so it does not share the installed app's name in Launchpad. That change stays in `node_modules`. Do not commit it.
 
 ## 目录 / Layout
 
@@ -157,9 +157,9 @@ An index in `SCHEMA_SQL` that uses a new column fails on old libraries, because 
 
 A reference library does not move originals. Emptying the trash removes index rows only. It does not delete the files on disk.
 
-开发时的最近打开记录在 `~/Library/Application Support/Aerie/`。显示名改成影巢之后，这个目录名仍是 Aerie，避免把已经记下的库弄丢。
+开发时的最近打开记录在 `~/Library/Application Support/Aerie/`。显示名改成图匣之后，这个目录名仍是 Aerie，避免把已经记下的库弄丢。
 
-Recent libraries in development are stored in `~/Library/Application Support/Aerie/`. The folder stays named Aerie after the display name became 影巢, so existing library records are not lost.
+Recent libraries in development are stored in `~/Library/Application Support/Aerie/`. The folder stays named Aerie after the display name became 图匣, so existing library records are not lost.
 
 ## 平台差异 / Platforms
 
@@ -168,7 +168,7 @@ Recent libraries in development are stored in `~/Library/Application Support/Aer
 | 库、搜索、文件夹、标签、常见图片缩略图 Library, search, folders, tags, everyday thumbnails | 有 Yes | 代码能跑，没有现成安装包 The code can run; there is no installer yet |
 | PSD、AI、PDF、视频、字体预览 Design, PDF, video, and font previews | QuickLook | 跳过 Skipped |
 | 画面文字识别 Text recognition | Vision | 跳过，侧栏会说明原因 Skipped; the sidebar explains why |
-| 程序坞名称 Dock name | `name-dev-app.mjs` 改成影巢 Renamed to 影巢 | 不跑这段脚本 Script does not run |
+| 程序坞名称 Dock name | 安装版是图匣；开发版是图匣 Dev Installed app is 图匣; development app is 图匣 Dev | 不跑这段脚本 Script does not run |
 
 ## 技术栈 / Stack
 

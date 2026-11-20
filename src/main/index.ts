@@ -25,7 +25,7 @@ import { readRecent } from './library/recent.js'
 import { syncAppMenu } from './menu.js'
 
 // 数据目录继续用 Aerie，已经记下的库不会因为改显示名而换文件夹。
-// 程序坞和菜单栏显示「影巢」，由 npm run dev 写进 Electron.app。
+// 程序坞和菜单栏显示「图匣」，由 npm run dev 写进 Electron.app。
 app.setName('Aerie')
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -201,7 +201,7 @@ function createWindow(): void {
     minWidth: 900,
     minHeight: 600,
     show: false,
-    title: '影巢',
+    title: '图匣',
     titleBarStyle: 'hiddenInset',
     backgroundColor: '#141416',
     trafficLightPosition: { x: 16, y: 18 },
@@ -267,7 +267,7 @@ if (!gotLock) {
       if (!icon.isEmpty()) app.dock.setIcon(icon)
     }
     app.setAboutPanelOptions({
-      applicationName: '影巢',
+      applicationName: '图匣',
       applicationVersion: app.getVersion(),
       copyright: '本地素材库',
     })

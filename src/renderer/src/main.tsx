@@ -1336,7 +1336,7 @@ function Welcome({
   return (
     <div className="welcome">
       <div className="welcome-inner">
-        <h1>影巢</h1>
+        <h1>图匣</h1>
         <p className="tagline">本地优先的素材库。文件始终属于你。</p>
 
           <div className="welcome-choices">
@@ -1998,7 +1998,7 @@ function App(): React.JSX.Element {
       mode === 'copy' ? '选择复制库的存放位置' : '选择引用库的存放位置',
     )
     if (!dir) return
-    const name = dir.split('/').pop() ?? '影巢库'
+    const name = dir.split('/').pop() ?? '图匣库'
     try {
       const lib = await window.aerie.library.create({
         name,
@@ -2015,7 +2015,7 @@ function App(): React.JSX.Element {
   }, [refreshAll])
 
   const doOpenLibrary = useCallback(async (): Promise<void> => {
-    const dir = await window.aerie.dialog.pickNewLibrary('选择影巢库（.aerie 文件夹，或它所在的目录）')
+    const dir = await window.aerie.dialog.pickNewLibrary('选择图匣库（.aerie 文件夹，或它所在的目录）')
     if (!dir) return
     try {
       const lib = await window.aerie.library.open(dir)
@@ -2083,7 +2083,7 @@ function App(): React.JSX.Element {
   }, [resetBrowse])
 
   const doSwitchLibrary = useCallback(async (): Promise<void> => {
-    const dir = await window.aerie.dialog.pickNewLibrary('选择要切换到的影巢库')
+    const dir = await window.aerie.dialog.pickNewLibrary('选择要切换到的图匣库')
     if (!dir) return
     try {
       const lib = await window.aerie.library.open(dir)
